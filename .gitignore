@@ -1,4 +1,11 @@
 # Vim swap files
 .*.sw?
+
+# Python
 .venv
+__pycache__
+*.pyc
+
+# OU
 remote_data
+var

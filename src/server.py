@@ -1,13 +1,14 @@
 #!/usr/bin/env/python3
 
 import argparse
+import datetime
 import logging
 import os
-import time
 
 import flask
 import flask_restful
 
+import seqfile
 
 # Command-Line Argument Parsing
 #=================================================================
@@ -26,6 +27,15 @@ def build_parser():
 
     return parser
 
+# Helpers
+#=================================================================
+
+def prep_append_file(dir=".", match=('',''), size_limit=100*1024):
+    os.makedirs(dir, exist_ok=True)
+    target = seqfile.choose_append_file(dir, match, size_limit)
+    tpath = "/".join([dir, target])
+    return tpath
+
 # Flask
 #=================================================================
 # Flash-Restful docs index:             https://flask-restful.readthedocs.io/en/latest/index.html
@@ -43,8 +53,14 @@ class HelloWorld(flask_restful.Resource):
 
 class OuAlive(flask_restful.Resource):
     def post(self, ou_id):
-        data_dir = flask.current_app.config["OU_DATA_DIR"]
-        localpath = flask.safe_join(data_dir, ou_id, "pings")
+        var_dir = flask.current_app.config["SERVER_VAR_DIR"]
+        alive_dir = flask.safe_join(var_dir, "pings")
+        target = prep_append_file(dir=alive_dir, match=("pings-", ".tsv"))
+        tiso = datetime.datetime.utcnow().isoformat()
+        row = [tiso, ou_id]
+        with open(target, "at") as f:
+            f.write("\t".join(row))
+            f.write("\n")
         return None
 
 class OuDataFile(flask_restful.Resource):
@@ -71,6 +87,7 @@ class OuDataFile(flask_restful.Resource):
 if __name__ == "__main__":
     app = flask.Flask(__name__)
     app.config['OU_DATA_DIR'] = "remote_data"
+    app.config['SERVER_VAR_DIR'] = "var"
 
     api = flask_restful.Api(app)
     api.add_resource(HelloWorld, "/")
