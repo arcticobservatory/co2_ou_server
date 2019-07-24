@@ -63,7 +63,7 @@ class OuAlive(flask_restful.Resource):
             f.write("\n")
         return None
 
-class OuDataFile(flask_restful.Resource):
+class OuPush(flask_restful.Resource):
     def get(self, ou_id, filepath):
         print(flask.request)
         print(flask.request.data)
@@ -92,6 +92,6 @@ if __name__ == "__main__":
     api = flask_restful.Api(app)
     api.add_resource(HelloWorld, "/")
     api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
-    api.add_resource(OuDataFile, "/ou/<string:ou_id>/<path:filepath>")
+    api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
 
     app.run(host='0.0.0.0', port=8080, debug=True)
