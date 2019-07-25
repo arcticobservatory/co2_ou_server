@@ -63,6 +63,17 @@ class OuAlive(flask_restful.Resource):
             f.write("\n")
         return None
 
+def sequential_dir_progress(localdir):
+    files = os.listdir(localdir)
+    files.sort()
+    lastfile = seqfile.last_file_in_sequence(files)
+    if lastfile:
+        lastpath = flask.safe_join(localdir, lastfile)
+        size = os.stat(lastpath)[6]
+        return [lastfile, size]
+    else:
+        return [None, None]
+
 class OuPush(flask_restful.Resource):
     def get(self, ou_id, filepath):
         print(flask.request)
@@ -74,12 +85,43 @@ class OuPush(flask_restful.Resource):
         offset = int(flask.request.args["offset"])
 
         localpath = flask.safe_join(data_dir, ou_id, filepath)
-        os.makedirs(os.path.dirname(localpath), exist_ok=True)
+        localdir = os.path.dirname(localpath)
+        localfile = os.path.basename(localpath)
 
-        with open(localpath, "a+b") as f:
+        # Make sure everything exists
+        os.makedirs(localdir, exist_ok=True)
+        if not os.path.isfile(localpath):
+            with open(localpath, "w"):
+                pass
+
+        localsize = os.stat(localpath)[6]
+
+        # Make sure we're not skipping part of a file
+        lastfile, lastsize = sequential_dir_progress(localdir)
+        if lastfile == localfile and offset > lastsize + 1:
+            flask.abort(416, {
+                    "error": "SKIPPED_PART_OF_FILE",
+                    "ack_file": [lastfile, lastsize, lastsize],
+                    })
+
+        # On file modes:
+        #
+        # a will force append to the end of the file.
+        # w will truncate the file.
+        # r+ allows reading and seeking.
+        #
+        # So r+ is what we need, but it throws an error if the file doesn't
+        # exist, so create it first.
+
+        with open(localpath, "r+b") as f:
             # Note: seeking past the end of the file and then writing will fill the gap with zeros
             f.seek(offset)
             f.write(data)
+
+        lastfile, lastsize = sequential_dir_progress(localdir)
+        return {
+                "ack_file": [lastfile, lastsize, lastsize],
+            }
 
 # Main
 #=================================================================
