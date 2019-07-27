@@ -61,7 +61,14 @@ class OuAlive(flask_restful.Resource):
         with open(target, "at") as f:
             f.write("\t".join(row))
             f.write("\n")
-        return None
+
+        return {
+                "config_patch": {
+                    "conf/ou-id.json": {
+                        "site_code": "mikedesk",
+                        },
+                    },
+                }
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
@@ -80,7 +87,7 @@ class OuPush(flask_restful.Resource):
         print(flask.request.data)
 
     def put(self, ou_id, filepath):
-        data_dir = flask.current_app.config["OU_DATA_DIR"]
+        data_dir = flask.current_app.config["REMOTE_DATA_DIR"]
         data = flask.request.data
         offset = int(flask.request.args["offset"])
 
@@ -123,17 +130,56 @@ class OuPush(flask_restful.Resource):
                 "ack_file": [lastfile, lastsize, lastsize],
             }
 
+def find_files(topdir):
+    for dpath, dirnames, fnames in os.walk(topdir):
+        for fname in fnames:
+            yield "/".join([dpath,fname])
+
+def strip_prefix(prefix, str_iter):
+    for s in str_iter:
+        if not s.startswith(prefix):
+            raise Exception("No prefix: {} does not start with {}".format(s, prefix))
+        yield s[len(prefix):]
+
+class OuPull(flask_restful.Resource):
+    def get(self, ou_id, filepath):
+        data_dir = flask.current_app.config["REMOTE_DATA_DIR"]
+        localpath = flask.safe_join(data_dir, ou_id, filepath)
+        args = flask.request.args
+        recursive = "recursive" in args and args["recursive"] in ["True", "1"]
+
+        if not filepath: flask.abort(404)
+
+        firstsegment = filepath.split("/")[0]
+        whitelist = ["updates"]
+
+        if not firstsegment in whitelist: flask.abort(404)
+
+        if os.path.isdir(localpath):
+            if not recursive:
+                return os.listdir(localpath)
+            else:
+                prefix = localpath + "/"
+                fpaths = strip_prefix(prefix, find_files(localpath))
+                return list(fpaths)
+
+        elif os.path.isfile(localpath):
+            fname = os.path.basename(localpath)
+            f = open(localpath, "rb")
+            return flask.send_file(f, attachment_filename=fname)
+
 # Main
 #=================================================================
 
 if __name__ == "__main__":
     app = flask.Flask(__name__)
-    app.config['OU_DATA_DIR'] = "remote_data"
+    app.config['REMOTE_DATA_DIR'] = "remote_data"
     app.config['SERVER_VAR_DIR'] = "var"
 
     api = flask_restful.Api(app)
     api.add_resource(HelloWorld, "/")
     api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
     api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
+    api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
 
     app.run(host='0.0.0.0', port=8080, debug=True)
