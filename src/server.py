@@ -168,6 +168,9 @@ class OuPull(flask_restful.Resource):
             f = open(localpath, "rb")
             return flask.send_file(f, attachment_filename=fname)
 
+        else:
+            flask.abort(404)
+
 # Main
 #=================================================================
 
