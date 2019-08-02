@@ -101,8 +101,6 @@ class OuPush(flask_restful.Resource):
             with open(localpath, "w"):
                 pass
 
-        localsize = os.stat(localpath)[6]
-
         # Make sure we're not skipping part of a file
         lastfile, lastsize = sequential_dir_progress(localdir)
         if lastfile == localfile and offset > lastsize + 1:
