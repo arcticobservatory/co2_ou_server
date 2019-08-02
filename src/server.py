@@ -47,6 +47,10 @@ def prep_append_file(dir=".", match=('',''), size_limit=100*1024):
 # Curl multipart form posts:            https://ec.haxx.se/http-multipart.html
 # Werkzeug's filename sanitizer:        https://werkzeug.palletsprojects.com/en/0.15.x/utils/#werkzeug.utils.secure_filename
 
+app = flask.Flask(__name__)
+app.config['REMOTE_DATA_DIR'] = "remote_data"
+app.config['SERVER_VAR_DIR'] = "var"
+
 class HelloWorld(flask_restful.Resource):
     def get(self):
         return "Hello world!"
@@ -167,18 +171,14 @@ class OuPull(flask_restful.Resource):
         else:
             flask.abort(404)
 
+api = flask_restful.Api(app)
+api.add_resource(HelloWorld, "/")
+api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
+api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
+api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
+
 # Main
 #=================================================================
 
 if __name__ == "__main__":
-    app = flask.Flask(__name__)
-    app.config['REMOTE_DATA_DIR'] = "remote_data"
-    app.config['SERVER_VAR_DIR'] = "var"
-
-    api = flask_restful.Api(app)
-    api.add_resource(HelloWorld, "/")
-    api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
-    api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
-    api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
-
     app.run(host='0.0.0.0', port=8080, debug=True)
