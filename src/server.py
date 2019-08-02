@@ -48,8 +48,8 @@ def prep_append_file(dir=".", match=('',''), size_limit=100*1024):
 # Werkzeug's filename sanitizer:        https://werkzeug.palletsprojects.com/en/0.15.x/utils/#werkzeug.utils.secure_filename
 
 app = flask.Flask(__name__)
-app.config['REMOTE_DATA_DIR'] = "remote_data"
-app.config['SERVER_VAR_DIR'] = "var"
+app.config['REMOTE_DATA_DIR'] = "../remote_data"
+app.config['SERVER_VAR_DIR'] = "../var"
 
 class HelloWorld(flask_restful.Resource):
     def get(self):
