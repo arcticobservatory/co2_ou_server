@@ -102,10 +102,10 @@ class OuPush(flask_restful.Resource):
         # Make sure we're not skipping part of a file
         lastfile, lastsize = sequential_dir_progress(localdir)
         if lastfile == localfile and offset > lastsize + 1:
-            flask.abort(416, {
+            return {
                     "error": "SKIPPED_PART_OF_FILE",
                     "ack_file": [lastfile, lastsize, lastsize],
-                    })
+                    }, 416
 
         # On file modes:
         #
