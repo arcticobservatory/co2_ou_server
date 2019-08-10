@@ -1,8 +1,9 @@
 #!/bin/bash
 
-pingsfile=$(find var/pings/* | sort | tail -n2)
+pingsfile=$(find var/pings/* | sort -r | head -n2)
+hwids=$(cut -f2 $pingsfile | sort | uniq)
 # For each unique hardware id in the pings file
-for hwid in $(cut -f2 $pingsfile | sort | uniq); do
+for hwid in $hwids; do
 	# tac --- Search backwards through the pings file for the last ping,
 	# awk --- Re-order the output fields (site code, time, hardware id)
 	# sed --- Reformat the ISO date to be more readable
