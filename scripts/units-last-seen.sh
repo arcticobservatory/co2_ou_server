@@ -10,4 +10,4 @@ for hwid in $hwids; do
 	tac $pingsfile | grep $hwid | head -n1 \
 		| awk 'BEGIN {OFS="\t"}; {print $3, $1, $2}' \
 		| sed -E 's/([0-9-]{10})T([0-9:]{8}).[0-9]+/\1 \2/'
-done | sort
+done | sort $@
