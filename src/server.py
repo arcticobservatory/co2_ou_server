@@ -4,6 +4,7 @@ import argparse
 import datetime
 import logging
 import os
+import subprocess
 
 import flask
 import flask_restful
@@ -72,6 +73,19 @@ class OuAlive(flask_restful.Resource):
             f.write("\t".join(row))
             f.write("\n")
         return {}
+
+class StatusAliveRecent(flask_restful.Resource):
+    def get(self):
+        var_dir = flask.current_app.config["SERVER_VAR_DIR"]
+        alive_dir = flask.safe_join(var_dir, "pings")
+        dirlist = sorted(os.listdir(alive_dir))
+        target = seqfile.last_file_in_sequence(dirlist, match=("pings-", ".tsv"))
+        target = flask.safe_join(alive_dir, target)
+        if not target:
+            return "No recent pings"
+        else:
+            tailproc = subprocess.run(["tail", "-n", "20", target], stdout=subprocess.PIPE)
+            return flask.Response(tailproc.stdout.decode("utf-8"), mimetype="text/plain")
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
@@ -177,6 +191,7 @@ api.add_resource(HelloWorld, "/")
 api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
 api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
 api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
+api.add_resource(StatusAliveRecent, "/status/alive/recent")
 
 # Main
 #=================================================================
