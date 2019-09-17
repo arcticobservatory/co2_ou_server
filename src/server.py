@@ -86,18 +86,34 @@ class StatusAliveRecent(flask_restful.Resource):
         else:
             args = flask.request.args
             asc = args["asc"] in ["true","True","1"] if "asc" in args else False
+            refresh = args["refresh"] if "refresh" in args else None
 
             tailproc = subprocess.run(["tail", "-n", "20", target], stdout=subprocess.PIPE)
-            lines = tailproc.stdout.decode("utf-8").split("\n")
+            lines = tailproc.stdout.decode("utf-8").strip().split("\n")
+
+            tiso = datetime.datetime.utcnow().isoformat()
+            lines.append("{}\t(now)".format(tiso))
+
+            if not asc:
+                lines = list(reversed(lines))
+
             for i,line in enumerate(lines):
                 # Strip sub-seconds from timestampe
                 line = line[:len("2019-09-17T16:37:12")] + line[len("2019-09-17T16:37:12.455629"):]
                 # Strip "co2unit-" part
                 line = line.replace("\tco2unit-", "\t")
                 lines[i] = line
-            if not asc:
-                lines = reversed(lines)
-            return flask.Response("\n".join(lines), mimetype="text/plain")
+
+            resp = flask.Response("\n".join(lines), mimetype="text/plain")
+
+            if refresh:
+                try:
+                    refresh = int(refresh)
+                    resp.headers["Refresh"] = refresh
+                except:
+                    pass
+
+            return resp
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
