@@ -58,13 +58,16 @@ class HelloWorld(flask_restful.Resource):
 class OuAlive(flask_restful.Resource):
     def post(self, ou_id):
         args = flask.request.args
-        site_code = args["site_code"] if "site_code" in args else "None"
+        tiso = datetime.datetime.utcnow().isoformat()
+
+        row = [tiso, ou_id]
+        for i,a in enumerate(["site_code", "rssi_raw", "rssi_dbm"]):
+            val = args[a] if a in args else None
+            row.append(val)
 
         var_dir = flask.current_app.config["SERVER_VAR_DIR"]
         alive_dir = flask.safe_join(var_dir, "pings")
         target = prep_append_file(dir=alive_dir, match=("pings-", ".tsv"))
-        tiso = datetime.datetime.utcnow().isoformat()
-        row = [tiso, ou_id, site_code]
         with open(target, "at") as f:
             f.write("\t".join(row))
             f.write("\n")
