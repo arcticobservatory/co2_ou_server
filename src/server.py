@@ -84,8 +84,14 @@ class StatusAliveRecent(flask_restful.Resource):
         if not target:
             return "No recent pings"
         else:
+            args = flask.request.args
+            asc = args["asc"] in ["true","True","1"] if "asc" in args else False
+
             tailproc = subprocess.run(["tail", "-n", "20", target], stdout=subprocess.PIPE)
-            return flask.Response(tailproc.stdout.decode("utf-8"), mimetype="text/plain")
+            output = tailproc.stdout.decode("utf-8")
+            if not asc:
+                output = "\n".join(reversed(output.split("\n")))
+            return flask.Response(output, mimetype="text/plain")
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
