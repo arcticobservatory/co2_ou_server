@@ -64,7 +64,7 @@ class OuAlive(flask_restful.Resource):
         row = [tiso, ou_id]
         for i,a in enumerate(["site_code", "rssi_raw", "rssi_dbm"]):
             val = args[a] if a in args else None
-            row.append(val)
+            row.append(str(val))
 
         var_dir = flask.current_app.config["SERVER_VAR_DIR"]
         alive_dir = flask.safe_join(var_dir, "pings")
