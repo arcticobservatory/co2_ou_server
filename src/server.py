@@ -17,14 +17,8 @@ import seqfile
 def build_parser():
     parser = argparse.ArgumentParser(prog=__file__)
 
-    parser.add_argument("-p", "--port", type=int, default=80,
+    parser.add_argument("-p", "--port", type=int, default=8080,
             help="Port number to listen on.")
-
-    parser.add_argument("--shutdown-grace-seconds", type=float, default=2,
-            help="When server is asked to shutdown, give it this many seconds to shutdown cleanly.")
-
-    parser.add_argument("--loglevel", default="INFO",
-            help="Logging level. ERROR, WARN, INFO, DEBUG.")
 
     return parser
 
@@ -225,4 +219,6 @@ api.add_resource(StatusAliveRecent, "/status/alive/recent")
 #=================================================================
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    parser = build_parser();
+    args = parser.parse_args();
+    app.run(host='0.0.0.0', port=args.port, debug=True)
