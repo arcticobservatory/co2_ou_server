@@ -1,5 +1,6 @@
 # Instance configuration
 src/server.ini
+co2unit-server.service
 
 # Vim swap files
 .*.sw?

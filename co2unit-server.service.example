@@ -1,0 +1,12 @@
+[Unit]
+Description=HTTP server for CO2 Observervation Units (uWSGI-->Flask)
+Aver=network.target
+
+[Service]
+User=mmu019
+Group=www-data
+WorkingDirectory=/home/mmu019/projects/co2_unit_server
+ExecStart=/home/mmu019/projects/co2_unit_server/scripts/start-server.sh
+
+[Install]
+WantedBy=multi-user.target
