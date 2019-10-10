@@ -4,6 +4,7 @@ Flask==1.0.3
 Flask-RESTful==0.3.7
 itsdangerous==1.1.0
 Jinja2==2.10.1
+json2table==1.1.5
 MarkupSafe==1.1.1
 pytz==2019.1
 six==1.12.0

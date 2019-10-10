@@ -2,12 +2,17 @@
 
 import argparse
 import datetime
+import io
 import logging
 import os
+import sqlite3
 import subprocess
 
 import flask
 import flask_restful
+import json2table
+import pandas as pd
+import numpy as np
 
 import seqfile
 
@@ -108,6 +113,70 @@ class StatusAliveRecent(flask_restful.Resource):
                     pass
 
             return resp
+
+html_style = """
+    <style type="text/css">
+        table {
+            font-family: "Verdana", sans-serif;
+            border-collapse: collapse;
+            text-align: right;
+        }
+        th {
+            font-weight: normal;
+        }
+        td {
+            padding: .2em .5em;
+        }
+        table tr:nth-child(even) {
+          background: #ddd;
+        }
+    </style>
+"""
+
+class StatusAliveSummary(flask_restful.Resource):
+    def get(self):
+        var_dir = flask.current_app.config["SERVER_VAR_DIR"]
+        db_path = flask.safe_join(var_dir, "db.sqlite3")
+        db = sqlite3.connect(db_path)
+        cur = db.execute("SELECT * FROM pings_view_by_unit_id;")
+        """
+        buf = io.StringIO()
+
+        buf.write("<table>")
+        for row in cur:
+            buf.write("<tr>")
+            for cell in row:
+                buf.write("<td>")
+                buf.write(str(cell))
+                buf.write("</td>")
+            buf.write("</tr>")
+        buf.write("</table>")
+
+        # html = json2table.convert(cur.fetchall(), build_direction="TOP_TO_BOTTOM")
+        resp = flask.Response(buf.getvalue(), mimetype="text/html")
+        """
+        rows = cur.fetchall()
+        col_names = [column[0] for column in cur.description]
+        df = pd.DataFrame.from_records(data=rows, columns=col_names)
+
+        # Massage data
+        intfmt = lambda n: str(int(n)) if n==n else ''
+        df.deploy_days = df.deploy_days.apply(intfmt)
+        df.deploy_ping_days = df.deploy_ping_days.apply(intfmt)
+        df = df.replace(np.nan, '')
+
+        # html = df.to_html(border=0)
+        html = df.to_html(
+                border = 0,
+                justify = "right",
+                na_rep = "",
+                float_format = lambda n: "{:.1f}".format(n) if n==n else "",
+                )
+        resp = flask.Response(html_style + html, mimetype="text/html")
+        resp.headers["Refresh"] = str(10 * 60)
+
+        # print(list(rows))
+        return resp
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
@@ -214,6 +283,7 @@ api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
 api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
 api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
 api.add_resource(StatusAliveRecent, "/status/alive/recent")
+api.add_resource(StatusAliveSummary, "/status/alive/summary")
 
 # Main
 #=================================================================
