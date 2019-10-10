@@ -71,6 +71,24 @@ class OuAlive(flask_restful.Resource):
         with open(target, "at") as f:
             f.write("\t".join(row))
             f.write("\n")
+
+        try:
+            sqlrow = {
+                    "ping_date": tiso[:len("2019-09-17")],
+                    "ping_time": tiso[len("2019-09-17T"):],
+                    "unit_id": ou_id,
+                    "nickname": args["site_code"] if "site_code" in args else None,
+                    "rssi_raw": args["rssi_raw"] if "rssi_raw" in args else None,
+                    "rssi_dbm": args["rssi_dbm"] if "rssi_dbm" in args else None,
+            }
+            db_path = flask.safe_join(var_dir, "db.sqlite3")
+            db = sqlite3.connect(db_path)
+            with db:
+                db.execute("insert into pings values (:ping_date, :ping_time, :unit_id, :nickname, :rssi_raw, :rssi_dbm);", sqlrow)
+            db.close()
+        except Exception as e:
+            print("Could not add ping to database:", e)
+
         return {}
 
 class StatusAliveRecent(flask_restful.Resource):
@@ -158,6 +176,7 @@ class StatusAliveSummary(flask_restful.Resource):
         rows = cur.fetchall()
         col_names = [column[0] for column in cur.description]
         df = pd.DataFrame.from_records(data=rows, columns=col_names)
+        db.close()
 
         # Massage data
         intfmt = lambda n: str(int(n)) if n==n else ''
