@@ -138,6 +138,7 @@ html_style = """
             font-family: "Verdana", sans-serif;
             border-collapse: collapse;
             text-align: right;
+            font-size: 10pt;
         }
         th {
             font-weight: normal;
