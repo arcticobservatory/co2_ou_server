@@ -92,8 +92,8 @@ order by
 		when d.site is not null then 1
 		else 2
 	end,
-	deploy_ping_days desc,
 	last_deploy_ping desc,
+	deploy_ping_days desc,
 	d.site desc,
 	last_ping desc,
 	lp.nickname
