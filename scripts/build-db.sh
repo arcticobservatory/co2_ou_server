@@ -52,8 +52,8 @@ ENDSQL
 # Create a most-recent pings view
 sqlite3 $DB_NAME <<-ENDSQL
 
-drop view if exists pings_view_by_unit_id;
-create view pings_view_by_unit_id
+drop view if exists pings_by_unit_id;
+create view pings_by_unit_id
 as
 select
 	u.unit_id,

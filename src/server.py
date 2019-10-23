@@ -157,7 +157,7 @@ class StatusAliveSummary(flask_restful.Resource):
         var_dir = flask.current_app.config["SERVER_VAR_DIR"]
         db_path = flask.safe_join(var_dir, "db.sqlite3")
         db = sqlite3.connect(db_path)
-        cur = db.execute("SELECT * FROM pings_view_by_unit_id;")
+        cur = db.execute("SELECT * FROM pings_by_unit_id;")
         """
         buf = io.StringIO()
 
