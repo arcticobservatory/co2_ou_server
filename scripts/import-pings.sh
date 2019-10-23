@@ -2,8 +2,8 @@
 
 set -e
 
-DB_NAME=${1:-var/db.sqlite3}; shift
-PING_FILES="${@:-/var/pings/pings-*.tsv}"
+DB_NAME=${1:-var/db.sqlite3}; shift || true
+PING_FILES="${@:-var/pings/pings-*.tsv}"
 
 pings_import_filter() {
     # Convert 'T' timestamps to separate date-time columns
