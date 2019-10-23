@@ -2,7 +2,8 @@
 
 set -e
 
-DB_NAME=var/db.sqlite3
+DB_NAME=${1:-var/db.sqlite3}; shift
+PING_FILES="${@:-/var/pings/pings-*.tsv}"
 
 pings_import_filter() {
     # Convert 'T' timestamps to separate date-time columns
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS deploy (
 ENDSQL
 
 # Pour ping data into database
-cat var/pings/pings-*.tsv \
+cat $PING_FILES \
     | pings_import_filter \
     | sqlite3 $DB_NAME -csv -separator "	" \
         ".import /dev/stdin pings" \
