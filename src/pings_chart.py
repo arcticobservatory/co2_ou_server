@@ -39,6 +39,7 @@ def generate_pings_chart(db):
     left join pings p
             on p.unit_id = d.unit_id
             and p.ping_date > d.deploy_date
+            and (d.bring_back_date is null or p.ping_date <= d.bring_back_date)
     where
         d.site is not null
             and ping_date is not null
