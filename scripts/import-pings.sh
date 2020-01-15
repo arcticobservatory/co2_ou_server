@@ -24,12 +24,13 @@ CREATE TABLE pings (
     rssi_dbm    INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS deploy (
-    unit_id     TEXT,
-    site        TEXT,
-    deploy_date TEXT,
-    deploy_note TEXT
-);
+CREATE TABLE IF NOT EXISTS deploy_durations (
+  "site" TEXT,
+  "unit_id" TEXT,
+  "nickname" TEXT,
+  "deploy_date" TEXT,
+  "bring_back_date" TEXT
+)
 ENDSQL
 
 # Pour ping data into database
@@ -80,7 +81,7 @@ left join pings as lp
 	on lp.unit_id = u.unit_id
 	and lp.ping_date = (select ping_date from pings where pings.unit_id = u.unit_id order by ping_date desc, ping_time desc limit 1)
 	and lp.ping_time = (select ping_time from pings where pings.unit_id = u.unit_id order by ping_date desc, ping_time desc limit 1)
-left join deploy as d
+left join deploy_durations as d
 	on d.unit_id = u.unit_id
 left join pings as dp
 	on dp.unit_id = u.unit_id

@@ -18,10 +18,8 @@ def generate_pings_chart(db):
     # Get deploy info
     deploys_sql = """
     select
-        *,
-        null as nickname,
-        null as bring_back_date
-    from deploy
+        *
+    from deploy_durations
     where
         site is not null
     """
@@ -37,7 +35,7 @@ def generate_pings_chart(db):
             p.nickname,
             rssi_raw,
             rssi_dbm
-    from deploy d
+    from deploy_durations d
     left join pings p
             on p.unit_id = d.unit_id
             and p.ping_date > d.deploy_date
