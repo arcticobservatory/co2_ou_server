@@ -83,6 +83,7 @@ left join pings as lp
 	and lp.ping_time = (select ping_time from pings where pings.unit_id = u.unit_id order by ping_date desc, ping_time desc limit 1)
 left join deploy_durations as d
 	on d.unit_id = u.unit_id
+	and d.bring_back_date is null
 left join pings as dp
 	on dp.unit_id = u.unit_id
 	and dp.ping_date = (select ping_date from pings where pings.unit_id = u.unit_id and ping_date > d.deploy_date order by ping_date desc, ping_time desc limit 1)
