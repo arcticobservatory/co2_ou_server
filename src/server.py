@@ -49,7 +49,9 @@ def prep_append_file(dir=".", match=('',''), size_limit=100*1024):
 # Curl multipart form posts:            https://ec.haxx.se/http-multipart.html
 # Werkzeug's filename sanitizer:        https://werkzeug.palletsprojects.com/en/0.15.x/utils/#werkzeug.utils.secure_filename
 
-app = flask.Flask(__name__)
+app = flask.Flask(__name__,
+        static_url_path="/var/pub",
+        static_folder="../var/pub")
 app.config['REMOTE_DATA_DIR'] = "../remote_data"
 app.config['SERVER_VAR_DIR'] = "../var"
 app.config['DB_PATH'] = "../var/db.sqlite3"
@@ -254,6 +256,26 @@ class StatusAliveChart(flask_restful.Resource):
 
         return serve_chart_file()
 
+class DataCo2Summary(flask_restful.Resource):
+    def get(self):
+        html = """
+            <style type="text/css">
+                img { max-width: 100%; }
+            </style>
+
+            <h1>Recent CO2 Data</h1>
+            <img src="/var/pub/co2_recent_hires.png" alt="plot of recent co2 readings"/>
+
+            <h1>All CO2 Data</h1>
+            <img src="/var/pub/co2_all_hires.png" alt="plot of all co2 readings"/>
+        """
+
+        resp = flask.Response(html_style + html, mimetype="text/html")
+        resp.headers["Refresh"] = str(1 * 60 * 60)
+
+        # print(list(rows))
+        return resp
+
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
     files.sort()
@@ -361,6 +383,7 @@ api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
 api.add_resource(StatusAliveRecent, "/status/alive/recent")
 api.add_resource(StatusAliveSummary, "/status/alive/summary")
 api.add_resource(StatusAliveChart, "/status/alive/" + app.config["PINGS_CHART_NAME"])
+api.add_resource(DataCo2Summary, "/data/co2/summary")
 
 # Main
 #=================================================================
