@@ -1,0 +1,6 @@
+# For plots
+matplotlib
+pandas
+numpy
+# For html templtes
+jinja2

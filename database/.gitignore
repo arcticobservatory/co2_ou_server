@@ -1,0 +1,8 @@
+# SQLite database and Make markers
+db.sqlite3
+.mark_*
+out_*/
+tmp.sql
+
+# Python
+.venv

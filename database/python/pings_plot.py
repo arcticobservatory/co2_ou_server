@@ -1,9 +1,6 @@
-import pandas as pd
+import sqlite3
 import numpy as np
-
-# MatPlotLib (for generating ping chart)
-#=================================================================
-
+import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -14,19 +11,9 @@ plt.style.use('tableau-colorblind10')
 # Pandas warns us if we don't
 pd.plotting.register_matplotlib_converters()
 
-def generate_pings_chart(db):
-    # Get deploy info
-    deploys_sql = """
-    select
-        *
-    from deploy_durations
-    where
-        site is not null
-    """
-    deploys = pd.read_sql(deploys_sql, db, parse_dates=['deploy_date','bring_back_date'])
-
+def fetch_ping_data(db):
     # Get deploy pings
-    deploy_pings_sql = """
+    pings_sql = """
     select
             p.ping_date,
             p.ping_time,
@@ -35,21 +22,25 @@ def generate_pings_chart(db):
             p.nickname,
             rssi_raw,
             rssi_dbm
-    from deploy_durations d
-    left join pings p
+    from pings p
+    left join deploy_durations d
             on p.unit_id = d.unit_id
             and p.ping_date > d.deploy_date
             and (d.bring_back_date is null or p.ping_date <= d.bring_back_date)
-    where
-        d.site is not null
-            and ping_date is not null
     order by
             ping_date,
             site desc,
             deploy_date
     ;
     """
-    deploy_pings = pd.read_sql(deploy_pings_sql, db, parse_dates=['ping_date'])
+    pings = pd.read_sql(pings_sql, db, parse_dates=['ping_date'])
+    return pings
+
+def fetch_deploy_data(db):
+    deploys = pd.read_sql('select * from deploy_durations', db, parse_dates=['deploy_date','bring_back_date'])
+    return deploys
+
+def plot_pings(pings, deploys):
 
     first_deploy = deploys.deploy_date.min()
     last_bring_back = deploys.bring_back_date.max()
@@ -84,7 +75,7 @@ def generate_pings_chart(db):
         yvals.append(yval)
 
         # Separate pings for just this site, and draw a broken bar graph
-        site_pings = deploy_pings.loc[deploy_pings.site == site].sort_values(by="ping_date")
+        site_pings = pings.loc[pings.site == site].sort_values(by="ping_date")
         date_tuples = [(ping_date + day_offset, day_width) for ping_date in site_pings.ping_date]
         ax.broken_barh(date_tuples, (yval-bar_width/2, bar_width))
 
@@ -110,10 +101,10 @@ def generate_pings_chart(db):
                 plt.vlines(deploy_end, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
 
         # Save nickname for tick labels later
-        if not site_pings.empty:
-            nicknames.append(site_pings.nickname.iloc[-1])
-        elif not site_deploys.empty:
+        if not site_deploys.empty:
             nicknames.append(site_deploys.nickname.iloc[-1])
+        elif not site_pings.empty:
+            nicknames.append(site_pings.nickname.iloc[-1])
         else:
             nicknames.append(None)
 
@@ -146,4 +137,21 @@ def generate_pings_chart(db):
 
     plt.tight_layout()
 
-    return plt
+    return fig, ax
+
+if __name__ == "__main__":
+
+    import argparse
+    parser = argparse.ArgumentParser(description="Plot pings data")
+    parser.add_argument('dbfile', type=str)
+    parser.add_argument('plotfile', type=str)
+
+    args = parser.parse_args()
+
+    db = sqlite3.connect(args.dbfile)
+    pings = fetch_ping_data(db)
+    deploys = fetch_deploy_data(db)
+
+    fig, ax = plot_pings(pings, deploys)
+
+    plt.savefig(args.plotfile)

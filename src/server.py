@@ -5,6 +5,7 @@ import datetime
 import io
 import logging
 import os
+import pathlib
 import sqlite3
 import subprocess
 import time
@@ -16,7 +17,6 @@ import pandas as pd
 import numpy as np
 
 import seqfile
-import pings_chart
 
 # Command-Line Argument Parsing
 #=================================================================
@@ -55,9 +55,7 @@ app = flask.Flask(__name__,
 app.config['REMOTE_DATA_DIR'] = "../remote_data"
 app.config['SERVER_VAR_DIR'] = "../var"
 app.config['DB_PATH'] = "../var/db.sqlite3"
-app.config['PINGS_CHART_NAME'] = "pings_chart.svg"
-app.config['PINGS_CHART_PATH'] = "../var/pings_chart.svg"
-app.config['PINGS_CHART_TMP_PATH'] = "../var/pings_chart_tmp.svg"
+app.config['DB_PING_MARK_FILE'] = "../var/.mark_db_load_pings"
 
 class HelloWorld(flask_restful.Resource):
     def get(self):
@@ -94,6 +92,9 @@ class OuAlive(flask_restful.Resource):
             with db:
                 db.execute("insert into pings values (:ping_date, :ping_time, :unit_id, :nickname, :rssi_raw, :rssi_dbm);", sqlrow)
             db.close()
+
+            # Mark pings as updated
+            pathlib.Path(flask.current_app.config["DB_PING_MARK_FILE"]).touch()
         except Exception as e:
             print("Could not add ping to database:", e)
 
@@ -139,142 +140,6 @@ class StatusAliveRecent(flask_restful.Resource):
                     pass
 
             return resp
-
-html_style = """
-    <style type="text/css">
-        table {
-            font-family: "Verdana", sans-serif;
-            border-collapse: collapse;
-            text-align: right;
-            font-size: 10pt;
-        }
-        th {
-            font-weight: normal;
-        }
-        td {
-            padding: .2em .5em;
-        }
-        table tr:nth-child(even) {
-          background: #ddd;
-        }
-    </style>
-"""
-
-class StatusAliveSummary(flask_restful.Resource):
-    def get(self):
-        var_dir = flask.current_app.config["SERVER_VAR_DIR"]
-        chart_name = flask.current_app.config["PINGS_CHART_NAME"]
-        db_path = flask.current_app.config["DB_PATH"]
-        db = sqlite3.connect(db_path)
-        cur = db.execute("SELECT * FROM pings_by_unit_id;")
-
-        rows = cur.fetchall()
-        col_names = [column[0] for column in cur.description]
-        df = pd.DataFrame.from_records(data=rows, columns=col_names)
-        db.close()
-
-        # Massage data
-        intfmt = lambda n: str(int(n)) if n==n else ''
-        df.deploy_days = df.deploy_days.apply(intfmt)
-        df.deploy_ping_days = df.deploy_ping_days.apply(intfmt)
-        df = df.replace(np.nan, '')
-
-        # html = df.to_html(border=0)
-        html = df.to_html(
-                border = 0,
-                justify = "right",
-                na_rep = "",
-                float_format = lambda n: "{:.1f}".format(n) if n==n else "",
-                )
-
-        html = """
-            {style}
-            <img src="{chart_name}" alt="pings chart"/>
-            <center>
-                <br/><br/>
-            </center>
-            {table}
-        """.format(style=html_style, chart_name=chart_name, table=html)
-
-        resp = flask.Response(html_style + html, mimetype="text/html")
-        resp.headers["Refresh"] = str(10 * 60)
-
-        # print(list(rows))
-        return resp
-
-class StatusAliveChart(flask_restful.Resource):
-    def get(self):
-        logger = flask.current_app.logger
-        var_dir = flask.current_app.config["SERVER_VAR_DIR"]
-        chart_path = flask.current_app.config["PINGS_CHART_PATH"]
-        chart_tmp_path = flask.current_app.config["PINGS_CHART_TMP_PATH"]
-        chart_ttl = 10 * 60
-        chart_build_timeout = 2
-        chart_refresh = time.time() - chart_ttl
-
-        def serve_chart_file():
-            logger.debug("pings_chart: serving %s", chart_path)
-            return flask.send_file(chart_path, cache_timeout=chart_ttl)
-
-        if os.path.isfile(chart_path) and os.path.getmtime(chart_path) > chart_refresh:
-            return serve_chart_file()
-
-        import pathlib
-
-        wait_start = time.time()
-        if os.path.isfile(chart_tmp_path):
-            logger.info("pings_chart: temp file is present. Waiting for other process to build chart. %s", chart_tmp_path)
-            while True:
-                time.sleep(.1)
-                if not os.path.isfile(chart_tmp_path) and os.path.isfile(chart_path):
-                    logger.info("pings_chart: temp file is gone. Chart is finished, serving. %s", chart_tmp_path)
-                    return serve_chart_file()
-                if time.time() > wait_start + chart_build_timeout:
-                    logger.warn("pings_chart: timeout waiting for other process. Building chart myself. %s", chart_tmp_path)
-                    break
-
-        # Touch the temp file to claim it
-        logger.info("pings_chart: claiming temp file. %s", chart_tmp_path)
-        pathlib.Path(chart_tmp_path).touch()
-
-        # Delay for testing
-        # time.sleep(5)
-
-        logger.debug("pings_chart: building chart")
-
-        db_path = flask.current_app.config["DB_PATH"]
-        db = sqlite3.connect(db_path)
-
-        plt = pings_chart.generate_pings_chart(db)
-
-        logger.debug("pings_chart: done building, saving to temp file. %s", chart_tmp_path)
-        plt.savefig(chart_tmp_path)
-
-        # Move the temp file into place
-        logger.info("pings_chart: done. Moving temp file into place. %s", chart_path)
-        os.rename(chart_tmp_path, chart_path)
-
-        return serve_chart_file()
-
-class DataCo2Summary(flask_restful.Resource):
-    def get(self):
-        html = """
-            <style type="text/css">
-                img { max-width: 100%; }
-            </style>
-
-            <h1>Recent CO2 Data</h1>
-            <img src="/var/pub/co2_recent_hires.png" alt="plot of recent co2 readings"/>
-
-            <h1>All CO2 Data</h1>
-            <img src="/var/pub/co2_all_hires.png" alt="plot of all co2 readings"/>
-        """
-
-        resp = flask.Response(html_style + html, mimetype="text/html")
-        resp.headers["Refresh"] = str(1 * 60 * 60)
-
-        # print(list(rows))
-        return resp
 
 def sequential_dir_progress(localdir):
     files = os.listdir(localdir)
@@ -375,15 +240,46 @@ class OuPull(flask_restful.Resource):
         else:
             flask.abort(404)
 
+status_alive_refresh = 60 * 10
+
+class StatusAliveSummary(flask_restful.Resource):
+    def get(self):
+        resp = flask.current_app.send_static_file("pings_summary.html")
+        resp.headers["Refresh"] = str(status_alive_refresh)
+        return resp
+
+class StatusAliveStatic(flask_restful.Resource):
+    def get(self, path):
+        resp = flask.send_from_directory(flask.current_app.static_folder, path, cache_timeout=status_alive_refresh-10)
+        return resp
+
+data_co2_refresh = 60 * 60 * 1
+
+class DataCo2Summary(flask_restful.Resource):
+    def get(self):
+        resp = flask.current_app.send_static_file("co2_summary.html")
+        resp.headers["Refresh"] = str(data_co2_refresh)
+        return resp
+
+class DataCo2Static(flask_restful.Resource):
+    def get(self, path):
+        resp = flask.send_from_directory(flask.current_app.static_folder, path, cache_timeout=data_co2_refresh-10)
+        return resp
+
 api = flask_restful.Api(app)
 api.add_resource(HelloWorld, "/")
 api.add_resource(OuAlive, "/ou/<string:ou_id>/alive")
 api.add_resource(OuPush, "/ou/<string:ou_id>/push-sequential/<path:filepath>")
 api.add_resource(OuPull, "/ou/<string:ou_id>/<path:filepath>")
+
 api.add_resource(StatusAliveRecent, "/status/alive/recent")
+
+# Additional semi-static resources built externally by Make
+# (See ../database/Makefile)
 api.add_resource(StatusAliveSummary, "/status/alive/summary")
-api.add_resource(StatusAliveChart, "/status/alive/" + app.config["PINGS_CHART_NAME"])
+api.add_resource(StatusAliveStatic, "/status/alive/<path:path>")
 api.add_resource(DataCo2Summary, "/data/co2/summary")
+api.add_resource(DataCo2Static, "/data/co2/<path:path>")
 
 # Main
 #=================================================================
