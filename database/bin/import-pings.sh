@@ -8,7 +8,7 @@ PING_FILES="${@:-var/pings/pings-*.tsv}"
 pings_import_filter() {
     # Convert 'T' timestamps to separate date-time columns
     # 2019-10-07T03:23:39.980794 -> 2019-10-07      03:23:39.980794
-    sed -E 's/^([0-9-]+)T/\1\t/'
+    sed -E 's/^([0-9-]+)T([0-9:]+)/\1T\2\t\1\t\2/'
 }
 
 # Create tables
@@ -16,6 +16,7 @@ sqlite3 $DB_NAME <<-ENDSQL
 drop table if exists pings;
 
 CREATE TABLE pings (
+    ping_ts     TEXT,
     ping_date   TEXT,
     ping_time   TEXT,
     unit_id     TEXT,

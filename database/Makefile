@@ -1,6 +1,8 @@
-.PHONY: default web
+.PHONY: default all web
 
 default: web
+
+all: default # (more added throughout file)
 
 # Important locations (can be overridden)
 # --------------------------------------------------
@@ -8,7 +10,7 @@ DATA_DIR := ..
 DB_DIR := .
 WEB_PUB_DIR := out_web
 
-# Major targets
+# Cleaning
 # --------------------------------------------------
 
 .PHONY: clean distclean
@@ -32,7 +34,7 @@ DB_FILE := $(DB_DIR)/db.sqlite3
 DEPLOY_IMPORT_MARKER:=$(DB_DIR)/.mark_db_load_deploy_durations
 DEPLOY_DURATIONS_TSV := $(DATA_DIR)/manual/deploy_durations.tsv
 
-$(DEPLOY_IMPORT_MARKER): | $(DEPLOY_DURATIONS_TSV)
+$(DEPLOY_IMPORT_MARKER): $(wildcard $(DEPLOY_DURATIONS_TSV)) | $(DEPLOY_DURATIONS_TSV)
 	./bin/import-deploy-durations.sh $(DB_FILE) < $(DEPLOY_DURATIONS_TSV) && touch $@
 
 $(DEPLOY_DURATIONS_TSV):
@@ -45,6 +47,8 @@ $(DEPLOY_DURATIONS_TSV):
 	@echo 	3. Pipe appropriate TSV data into the script bin/import-deploy-durations.sh
 	exit 1
 
+all: $(DEPLOY_IMPORT_MARKER)
+
 # Pings
 # --------------------------------------------------
 
@@ -54,6 +58,8 @@ PING_FILES:=$(wildcard $(DATA_DIR)/*/var/pings/pings-*.tsv)
 $(PING_IMPORT_MARKER): $(PING_FILES) bin/import-pings.sh
 	mkdir -p $(@D)
 	./bin/import-pings.sh $(DB_FILE) $(PING_FILES) && touch $@
+
+all: $(PING_IMPORT_MARKER)
 
 # CO2 readings
 # --------------------------------------------------
@@ -65,6 +71,8 @@ $(CO2_IMPORT_MARKER): $(CO2_READING_FILES) bin/import-co2-readings.sh
 	mkdir -p $(@D)
 	./bin/import-co2-readings.sh $(DB_FILE) $(CO2_READING_FILES) && touch $@
 
+all: $(CO2_IMPORT_MARKER)
+
 # Error logs
 # --------------------------------------------------
 
@@ -74,6 +82,8 @@ ERROR_LOG_FILES:=$(wildcard $(DATA_DIR)/co2unit-*/errors/errors-*.txt)
 $(ERROR_IMPORT_MARKER): $(ERROR_LOG_FILES) bin/import-error-logs.sh
 	mkdir -p $(@D)
 	./bin/import-error-logs.sh $(DB_FILE) $(ERROR_LOG_FILES) && touch $@
+
+all: $(ERROR_IMPORT_MARKER)
 
 # Plots and analysis with Python / Jupyter
 # --------------------------------------------------

@@ -76,7 +76,9 @@ def plot_co2_and_temp_by_site(co2s, deploys, co2_col="co2_mean", same_range_co2=
     # Set x axis limits
     # This also tells MatPlotLib that the x axis will be dates,
     # so we don't get errors when we try to draw date values on the x axis
-    plt.xlim(co2s.datetime.min(), co2s.datetime.max())
+    xmin = co2s.datetime.min()
+    xmax = co2s.datetime.max()
+    plt.xlim(xmin, xmax)
 
     for i, site in enumerate(reversed(sites)):
 
@@ -168,7 +170,10 @@ def plot_co2_and_temp_by_site(co2s, deploys, co2_col="co2_mean", same_range_co2=
 
     # Format x axis
     major_locator = mpl.dates.AutoDateLocator()
-    minor_locator = mpl.dates.DayLocator()
+    if xmax - xmin <= pd.Timedelta(days=31):
+        minor_locator = mpl.dates.HourLocator(byhour=[0,8,16])
+    else:
+        minor_locator = mpl.dates.DayLocator(bymonthday=[1,8,15,22,29])
     ax[0].xaxis.set_major_locator(major_locator)
     ax[0].xaxis.set_minor_locator(minor_locator)
     ax[0].xaxis.set_major_formatter(mpl.dates.ConciseDateFormatter(major_locator))

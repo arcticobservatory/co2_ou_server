@@ -15,6 +15,7 @@ def fetch_ping_data(db):
     # Get deploy pings
     pings_sql = """
     select
+            p.ping_ts,
             p.ping_date,
             p.ping_time,
             d.site,
@@ -25,15 +26,15 @@ def fetch_ping_data(db):
     from pings p
     left join deploy_durations d
             on p.unit_id = d.unit_id
-            and p.ping_date > d.deploy_date
-            and (d.bring_back_date is null or p.ping_date <= d.bring_back_date)
+            and p.ping_ts >= d.deploy_date
+            and (d.bring_back_date is null or p.ping_ts <= d.bring_back_date)
     order by
-            ping_date,
+            ping_ts,
             site desc,
             deploy_date
     ;
     """
-    pings = pd.read_sql(pings_sql, db, parse_dates=['ping_date'])
+    pings = pd.read_sql(pings_sql, db, parse_dates=['ping_ts','ping_date','ping_time'])
     return pings
 
 def fetch_deploy_data(db):
@@ -42,99 +43,127 @@ def fetch_deploy_data(db):
 
 def plot_pings(pings, deploys):
 
-    first_deploy = deploys.deploy_date.min()
-    last_bring_back = deploys.bring_back_date.max()
-    today = pd.Timestamp.now().normalize()
-    any_still_deployed = pd.isnull(deploys.bring_back_date).any()
-
-    sites = sorted(list(deploys.site.unique()))
-
+    # Create figure/axes
     fig, ax = plt.subplots()
 
     # Some parameters we will reuse
-    bar_width = 0.5
     deploy_line_height = .8
     deploy_line_style = 'solid'
-    day_width = pd.Timedelta(days=1.1)
-    day_offset = -pd.Timedelta(days=0) #day_width/2)
 
-    # Set x axis limits
-    # This also tells MatPlotLib that the x axis will be dates,
-    # so we don't get errors when we try to draw date values on the x axis
-    daymax = today if any_still_deployed else last_bring_back
-    plt.xlim(first_deploy + day_offset, daymax + day_width)
+    # Method to translate a ping timestamp to a box on the plot
+    # (Fill the whole day, plus a little to overlap)
+    ping_bar_height = 0.5
+    ping_bar_width = pd.Timedelta(days=1.1)
 
-    # Iterate over deployment sites
+    def ping_bar_start(ping_ts): return ping_ts.normalize()
+    def ping_bar_end(ping_ts): return ping_bar_start(ping_ts) + ping_bar_width
 
-    yvals = []      # Save y values for labels later
-    nicknames = []  # Save nicknames for labels later
+    # Determine and set x axis limits
+    #
+    # We need to set x limits ahead of time to give Matplotlib a heads-up that
+    # this axis will be pd.Timestamp values.
+    # Otherwise we will get errors when we try to draw date values on the axis.
+
+    deploy_min = deploys.deploy_date.min()
+    deploy_max = deploys.bring_back_date.max()
+    if pd.isnull(deploys.bring_back_date).any():
+        deploy_max = pd.Timestamp.now()
+
+    xmin = ping_bar_start(deploy_min)
+    xmax = ping_bar_end(deploy_max)
+    xmargin = (xmax - xmin) * 0.005
+
+    plt.xlim(xmin - xmargin, xmax + xmargin)
+
+    # Create arrays to gather left/right tick labels (site names and unit nicknames)
+    yvals = []
+    left_tick_labels = []
+    right_ticks_labels = []
+
+    # Iterate over deployment sites as rows
+
+    sites = sorted(list(deploys.site.unique()))
 
     for i, site in enumerate(sites):
-        # Save y value for tick labels later
-        yval = i+1
-        yvals.append(yval)
 
-        # Separate pings for just this site, and draw a broken bar graph
-        site_pings = pings.loc[pings.site == site].sort_values(by="ping_date")
-        date_tuples = [(ping_date + day_offset, day_width) for ping_date in site_pings.ping_date]
-        ax.broken_barh(date_tuples, (yval-bar_width/2, bar_width))
-
-        # Separate deploy durations for just this site
-        # and draw lines representing deployment
+        # Select all deployments for this site/row
         site_deploys = deploys.loc[deploys.site==site].sort_values(by="deploy_date")
 
-        for j, row in site_deploys.iterrows():
-            still_out = pd.isnull(row.bring_back_date)
-            deploy_start = row.deploy_date
-            deploy_end = (row.bring_back_date if not still_out else today)
+        # Determine y value and left/right y axis labels for row
+        yval = i+1
+        yvals.append(yval)
+        left_tick_labels.append(site)
 
-            # Pings are in the early morning
-            # Deployment is in the afternoon
-            # So we want to draw the dividing line where the end of the day's bar would be
-            deploy_start += day_offset + day_width
-            deploy_end   += day_offset + day_width
+        if not site_deploys.empty:
+            right_ticks_labels.append(site_deploys.nickname.iloc[-1])
+        else:
+            right_ticks_labels.append(None)
+
+        # Iterate over site deployments as segments within the row
+
+        for j, deploy in site_deploys.iterrows():
+
+            # Determine deploy segment start and end
+            deploy_start = deploy.deploy_date
+            deploy_end = (deploy.bring_back_date if not pd.isnull(deploy.bring_back_date) else xmax)
+
+            # Select pings in the deployment
+            unit_pings_select = pings.site == deploy.site
+            unit_pings_select &= pings.unit_id == deploy.unit_id
+            unit_pings_select &= pings.ping_ts >= deploy_start
+            unit_pings_select &= pings.ping_ts <= deploy_end
+            unit_pings = pings.loc[unit_pings_select]
+
+            # Determine ping bar placement
+            ping_bars = []
+            for ping_ts in unit_pings.ping_ts:
+                bar_start = max(ping_bar_start(ping_ts), deploy_start)
+                bar_end = min(ping_bar_end(ping_ts), deploy_end)
+                ping_bar = (bar_start, bar_end-bar_start)
+                ping_bars.append(ping_bar)
+
+            # Remove redundant bars (multiple pings in same period)
+            ping_bars = pd.Series(ping_bars).unique()
+
+            # Draw ping bars
+            ax.broken_barh(ping_bars, (yval-ping_bar_height/2, ping_bar_height))
 
             # Draw deploy lines
             plt.vlines(deploy_start, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
             plt.hlines(yval, deploy_start, deploy_end, linestyles=deploy_line_style)
-            if not still_out:
-                plt.vlines(deploy_end, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
-
-        # Save nickname for tick labels later
-        if not site_deploys.empty:
-            nicknames.append(site_deploys.nickname.iloc[-1])
-        elif not site_pings.empty:
-            nicknames.append(site_pings.nickname.iloc[-1])
-        else:
-            nicknames.append(None)
+            if not pd.isnull(deploy.bring_back_date):
+                plt.vlines(deploy.bring_back_date, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
 
     plt.grid(True)
 
     # Format x axis
     major_locator = mpl.dates.AutoDateLocator()
-    minor_locator = mpl.dates.DayLocator()
+    minor_locator = mpl.dates.DayLocator(bymonthday=[1,8,15,22,29])
     ax.xaxis.set_major_locator(major_locator)
     ax.xaxis.set_minor_locator(minor_locator)
     ax.xaxis.set_major_formatter(mpl.dates.ConciseDateFormatter(major_locator))
-    plt.xticks(rotation=60)
+    #plt.xticks(rotation=60)
 
     # Format y axis
-    plt.ylabel("site")
-    plt.yticks(yvals, sites)
-    plt.ylim(min(yvals)-0.5, max(yvals)+0.5)
+    ymargin = 0.5
+    ymin = min(yvals) - ymargin
+    ymax = max(yvals) + ymargin
 
-    ymin, ymax = plt.ylim()
+    # Format left y axis
+    ax.set_ylim(ymin,ymax)
+    ax.set_yticks(yvals)
+    ax.set_ylabel("site")
+    ax.set_yticklabels(left_tick_labels)
 
-    # Create a second y axis for unit nicknames
-    par1 = ax.twinx()
-    par1.set_ylim(ymin,ymax)
-    par1.set_yticks(yvals)
-    par1.set_yticklabels(nicknames)
-    par1.set_ylabel("unit nickname")
+    # Create a right-hand y axis for secondary info (unit nicknames)
+    ax2 = ax.twinx()
+    ax2.set_ylim(ymin,ymax)
+    ax2.set_yticks(yvals)
+    ax2.set_ylabel("unit nickname")
+    ax2.set_yticklabels(right_ticks_labels)
 
-    # Make the plot paper page width
+    # Set figure size
     fig.set_size_inches(11,4)
-
     plt.tight_layout()
 
     return fig, ax
