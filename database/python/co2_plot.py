@@ -41,88 +41,170 @@ def fetch_deploy_data(db):
     deploys = pd.read_sql('select * from deploy_durations', db, parse_dates=['deploy_date','bring_back_date'])
     return deploys
 
-def plot_co2_and_temp_by_site(co2s, deploys, co2_col="co2_mean", same_range_co2=None, same_range_temp=None, dpi=96):
-    # We will add a co2_mean column later.
-    # For now we will plot with in a regular column like "co2_05".
+def set_up_axes(co2s, sites=[], co2_col="co2_mean",
+            same_range_co2=None, same_range_temp=None, dpi=96):
 
-    # Get site names from data
-    # Use that as number of plots
-    sites = co2s.loc[~co2s.site.isnull()].site.unique()
-    sites = sorted(list(sites))
+    fig, co2_axes = plt.subplots(nrows=len(sites), ncols=1, sharex=True)
+    # Create an axis for temperature
+    temp_axes = [ax.twinx() for ax in co2_axes]
 
-    fig, ax = plt.subplots(nrows=len(sites), ncols=1, sharex=True)
     fig.dpi = dpi
 
-    # Set page size
-    ## 8in x 10in for 15 subplots
-    fig.set_size_inches(8.0, 10.0 * (len(sites)/15.0))
+    fig_max_w_in = 8.0
+    fig_max_h_in = 10.0
+    fig_max_plots = 15
+    fig_h_in = fig_max_h_in * (len(sites)/float(fig_max_plots))
+    fig.set_size_inches(fig_max_w_in, fig_h_in)
 
-    # Some parameters we will reuse
-
-    ## Pixel size in points, so we can specify very thin lines
-    ## dots per inch / 72.0 pts per inch = pts per dot
-    px_size_pts = 72.0 / fig.dpi
-
-    ## Marker size for scatter plots (s) is measured in marker AREA in pts squared,
-    ## so we need to square the width.
-    ## However, if s is less than 1 you get strange effects
-    ## (point markers change from '.' to unfilled circles),
-    ## so we need to make sure the area is at least 1.
-    scattersize_pts_sq = max(px_size_pts**2, 1)
-
-    # How to draw deploy lines
-    deploy_line_style = 'solid'
-
-    # Set x axis limits
-    # This also tells MatPlotLib that the x axis will be dates,
-    # so we don't get errors when we try to draw date values on the x axis
+    # All subplots will use the same X axis
+    #
+    # It's also importan to call this early to tell matplotlib we are using
+    # dates. Otherwise we may get errors trying to draw with Timestamp objects.
     xmin = co2s.datetime.min()
     xmax = co2s.datetime.max()
     plt.xlim(xmin, xmax)
+
+    major_locator = mpl.dates.AutoDateLocator()
+    if xmax - xmin <= pd.Timedelta(days=31):
+        minor_locator = mpl.dates.HourLocator(byhour=[0,8,16])
+    else:
+        minor_locator = mpl.dates.DayLocator(bymonthday=[1,8,15,22,29])
+    major_formatter = mpl.dates.ConciseDateFormatter(major_locator)
+    for ax in co2_axes:
+        ax.xaxis.set_major_locator(major_locator)
+        ax.xaxis.set_minor_locator(minor_locator)
+        ax.xaxis.set_major_formatter(major_formatter)
+
+    co2_axes[-1].set_xlabel("Date")
+
+    # Set limits for each Y axis
+    for i, site in enumerate(reversed(sites)):
+
+        site_readings = co2s.loc[co2s.site == site]
+        co2_ax = co2_axes[i]
+        temp_ax = temp_axes[i]
+
+        for ax, same_range, col in [
+                (co2_ax, same_range_co2, co2_col),
+                (temp_ax, same_range_temp, "temp")]:
+
+            # Set y axis limits
+            if isinstance(same_range, tuple):
+                ymin, ymax = same_range
+            else:
+                if same_range == True: data = co2s[col]
+                else: data = site_readings[col]
+                ymin, ymax = (data.min(), data.max())
+
+            margin = 0.05
+            ymin -= margin * (ymax - ymin)
+            ymax += margin * (ymax - ymin)
+            ax.set_ylim([ymin, ymax])
+
+            # Set y axis formatting
+            ax.yaxis.set_major_locator(mpl.ticker.AutoLocator())
+            ax.yaxis.set_minor_locator(mpl.ticker.AutoMinorLocator())
+            ax.tick_params(axis = 'both', which = 'major', labelsize = 'x-small')
+
+    fig.text(0, 0.8, "CO2 (ppm)", ha='left', va='top', rotation=90)
+    fig.text(1, 0.8, "Temp (C)", ha='right', va='top', rotation=-90)
+
+    return fig, co2_axes, temp_axes
+
+
+def plot_co2(ax, unit_readings, co2_col=None):
+
+    px_size_pts = 72.0 / ax.get_figure().dpi
+
+    # Draw co2 line
+    ax.plot(unit_readings.datetime, unit_readings[co2_col],
+            linewidth=2*px_size_pts, zorder=2)
+
+    # Draw co2 fill
+    ax.fill_between(unit_readings.datetime, -1000000, unit_readings[co2_col],
+            alpha=0.3)
+
+
+def plot_temp(ax, unit_readings):
+
+    px_size_pts = 72.0 / ax.get_figure().dpi
+
+    # Use multi-colored line technique from:
+    # https://matplotlib.org/3.1.1/gallery/lines_bars_and_markers/multicolored_line.html
+    #
+    # Instead of a line, turn the list of points into a collection of
+    # segments from each point to the next. Then give each segment a
+    # separate color.
+
+    # Colormap for temperature
+    cmap = mpl.colors.LinearSegmentedColormap.from_list("coolblackwarm",
+            ['blue','black','red'])
+    norm = mpl.colors.Normalize(-5, 5, clip=True)
+
+    # First convert dates to numbers
+    numericdates = mpl.dates.date2num(unit_readings.datetime)
+
+    # Create a list of points
+    # [[date0, temp0], [date1,temp1], ...]
+    pts = np.array([numericdates, unit_readings.temp]).T
+
+    # Reshape to list of 1-element list of points (-1 means infer size)
+    # [ [[date0,temp0]], [[date1,temp1]], ...]
+    pts = pts.reshape(-1, 1, 2)
+
+    # Copy, shift, and concatenate on the second axis to get a list of two-point line segments
+    # [ [[date0,temp0],[date1,temp1]], [[date1,temp1],[date2,temp2]], ...]
+    segments = np.concatenate([pts[:-1], pts[1:]], axis=1)
+
+    # Create a LineCollection from segments (each segment is one line in the collection)
+    lc = mpl.collections.LineCollection(segments, cmap=cmap, norm=norm)
+
+    segment_avg_temps = (unit_readings.temp[:-1] + unit_readings.temp[1:]) / 2
+    lc.set_array(segment_avg_temps)
+    lc.set_linewidth(2*px_size_pts)
+    line = ax.add_collection(lc)
+
+
+def mark_deployment(ax, deploy):
+
+    px_size_pts = 72.0 / ax.get_figure().dpi
+    ymax = 2000 * 1000 * 1000       # 200% co2
+    ymin = -10 * 1000
+
+    x = deploy.deploy_date
+    if not pd.isnull(deploy.bring_back_date):
+        x = [x, deploy.bring_back_date]
+
+    # Draw deploy start line
+    ax.vlines(x, ymin, ymax,
+                linewidth = 4 * px_size_pts,
+                linestyles = 'solid',
+                color = 'black',
+                zorder = 1)
+
+def write_site_label(ax, site_label):
+
+    t = ax.text(0.01, 0.85, site_label, transform=ax.transAxes,
+                horizontalalignment='left', verticalalignment='top',
+                fontsize='x-small',
+                zorder=10)
+    t.set_bbox(dict(facecolor='ghostwhite', alpha=0.8, edgecolor='lightgrey'))
+
+
+def plot_co2_and_temp_by_site(co2s, deploys, co2_col="co2_mean", same_range_co2=None, same_range_temp=None, dpi=96):
+
+    # Get site names from data
+    # Use that to set the number of plots
+    sites = co2s.loc[~co2s.site.isnull()].site.unique()
+    sites = sorted(list(sites))
+
+    fig, co2_axes, temp_axes = set_up_axes(co2s, sites=sites,
+            co2_col=co2_col, same_range_co2=same_range_co2, same_range_temp=same_range_temp, dpi=dpi)
 
     for i, site in enumerate(reversed(sites)):
 
         site_readings = co2s.loc[co2s.site == site]
         site_deploys = deploys.loc[deploys.site == site].sort_values(by="deploy_date")
-
-        margin = 0.05
-
-        # Get axis for co2 plot
-        co2_ax = ax[i]
-
-        if isinstance(same_range_co2, tuple):
-            co2_min, co2_max = same_range_co2
-            co2_ax.set_ylim([co2_min, co2_max])
-        elif same_range_co2 == True:
-            co2_min = co2s[co2_col].min()
-            co2_max = co2s[co2_col].max()
-            co2_min -= margin * (co2_max - co2_min)
-            co2_max += margin * (co2_max - co2_min)
-            co2_ax.set_ylim([co2_min, co2_max])
-        else:
-            co2_min = site_readings[co2_col].min()
-            co2_max = site_readings[co2_col].max()
-            co2_min -= margin * (co2_max - co2_min)
-            co2_max += margin * (co2_max - co2_min)
-
-        # Create an axis for temperature
-        temp_ax = co2_ax.twinx()
-
-        if isinstance(same_range_temp, tuple):
-            t_min, t_max = same_range_temp
-            temp_ax.set_ylim([t_min, t_max])
-        elif same_range_temp == True:
-            t_min = co2s.temp.min()
-            t_max = co2s.temp.max()
-            t_min -= margin * (t_max - t_min)
-            t_max += margin * (t_max - t_min)
-            temp_ax.set_ylim([t_min, t_max])
-
-        # Format y axes
-        for _ax in [co2_ax,temp_ax]:
-            _ax.yaxis.set_major_locator(mpl.ticker.AutoLocator())
-            _ax.yaxis.set_minor_locator(mpl.ticker.AutoMinorLocator())
-            _ax.tick_params(axis = 'both', which = 'major', labelsize = 'x-small')
 
         # Iterate over deployments and draw co2 plots
         for j, deploy in site_deploys.iterrows():
@@ -134,52 +216,14 @@ def plot_co2_and_temp_by_site(co2s, deploys, co2_col="co2_mean", same_range_co2=
 
             unit_readings = site_readings.loc[unit_readings_select]
 
-            # Draw co2 line
-            co2_ax.plot(unit_readings.datetime, unit_readings[co2_col], label=deploy.unit_id,
-                    linewidth=2*px_size_pts, zorder=2)
+            plot_co2(co2_axes[i], unit_readings, co2_col=co2_col)
+            plot_temp(temp_axes[i], unit_readings)
+            mark_deployment(co2_axes[i], deploy)
 
-            # Draw co2 fill
-            co2_ax.fill_between(unit_readings.datetime, max(co2_min,0), unit_readings[co2_col],
-                    alpha=0.3)
+        # Draw site label on the temperature axis because it's on top
+        write_site_label(temp_axes[i], site)
 
-            # Draw temperature
-
-            ## Calculate temperature colormap red--blue
-            reddest, bluest = 30, -30
-            tc = (unit_readings.temp-bluest)/(reddest-bluest)
-
-            ## Draw temperature scatterplot
-            temp_ax.scatter(unit_readings.datetime, unit_readings.temp, label=deploy.unit_id,
-                    c=mpl.cm.coolwarm(tc.clip(0,1)),
-                    marker='.', s=scattersize_pts_sq, zorder=1)
-
-            # Draw deploy start line
-            co2_ax.vlines(deploy.deploy_date, co2_min, co2_max,
-                        linewidth=2*px_size_pts, linestyles=deploy_line_style, color='lightgrey', zorder=1)
-
-            # Draw deploy end line
-            if not pd.isnull(deploy.bring_back_date):
-                co2_ax.vlines(deploy.bring_back_date, co2_min, co2_max,
-                        linewidth=2*px_size_pts, linestyles=deploy_line_style, color='lightgrey', zorder=1)
-
-        # Draw plot label
-        ## Draw it on the temperature ax because that axis is on top
-        t = temp_ax.text(0.01, 0.85, site, transform=co2_ax.transAxes,
-                    horizontalalignment='left', verticalalignment='top', fontsize='x-small', zorder=10)
-        t.set_bbox(dict(facecolor='ghostwhite', alpha=0.8, edgecolor='lightgrey'))
-
-    # Format x axis
-    major_locator = mpl.dates.AutoDateLocator()
-    if xmax - xmin <= pd.Timedelta(days=31):
-        minor_locator = mpl.dates.HourLocator(byhour=[0,8,16])
-    else:
-        minor_locator = mpl.dates.DayLocator(bymonthday=[1,8,15,22,29])
-    ax[0].xaxis.set_major_locator(major_locator)
-    ax[0].xaxis.set_minor_locator(minor_locator)
-    ax[0].xaxis.set_major_formatter(mpl.dates.ConciseDateFormatter(major_locator))
-
-    plt.tight_layout(h_pad=0.3)
-    return fig, ax
+    return fig, co2_axes
 
 if __name__ == "__main__":
 
@@ -213,9 +257,9 @@ if __name__ == "__main__":
         kwargs['same_range_temp'] = (-40, 30)
 
     if args.co2_max:
-        margin = 0.05
-        kwargs['same_range_co2'] = (0 - margin*args.co2_max, args.co2_max + margin*args.co2_max)
+        kwargs['same_range_co2'] = (0, args.co2_max)
 
     fig, ax = plot_co2_and_temp_by_site(co2_readings, deploys, **kwargs)
+    plt.tight_layout(h_pad=0.3)
 
     plt.savefig(args.plotfile)

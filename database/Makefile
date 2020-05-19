@@ -134,8 +134,8 @@ web: co2_summary_web
 
 co2_summary_web: \
     $(WEB_PUB_DIR)/co2_summary.html \
-    $(WEB_PUB_DIR)/co2_all_hires.png \
     $(WEB_PUB_DIR)/co2_recent_hires.png \
+    $(WEB_PUB_DIR)/co2_all_hires.png \
 
 
 $(WEB_PUB_DIR)/co2_summary.html: \
