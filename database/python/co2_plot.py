@@ -45,6 +45,9 @@ def set_up_axes(co2s, sites=[], co2_col="co2_mean",
             same_range_co2=None, same_range_temp=None, dpi=96):
 
     fig, co2_axes = plt.subplots(nrows=len(sites), ncols=1, sharex=True)
+    print('sites', sites, 'co2_axes', co2_axes)
+    if not hasattr(co2_axes, '__iter__'):
+        co2_axes = [co2_axes]
     # Create an axis for temperature
     temp_axes = [ax.twinx() for ax in co2_axes]
 
