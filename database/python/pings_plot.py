@@ -41,7 +41,7 @@ def fetch_deploy_data(db):
     deploys = pd.read_sql('select * from deploy_durations', db, parse_dates=['deploy_date','bring_back_date'])
     return deploys
 
-def plot_pings(pings, deploys):
+def plot_pings(pings, deploys, xmin=None, xmax=None):
 
     # Create figure/axes
     fig, ax = plt.subplots()
@@ -66,11 +66,24 @@ def plot_pings(pings, deploys):
 
     deploy_min = deploys.deploy_date.min()
     deploy_max = deploys.bring_back_date.max()
+
+    if pd.isnull(deploys.deploy_date).any():
+        deploy_min = pings.ping_ts.min()
+
     if pd.isnull(deploys.bring_back_date).any():
         deploy_max = pd.Timestamp.now()
 
-    xmin = ping_bar_start(deploy_min)
-    xmax = ping_bar_end(deploy_max)
+    if not xmin:
+        xmin = ping_bar_start(deploy_min)
+    else:
+        xmin = ping_bar_start(pd.Timestamp(xmin))
+
+    if not xmax:
+        xmax = ping_bar_end(deploy_max)
+    else:
+        xmax = ping_bar_end(pd.Timestamp(xmax))
+
+    # print("xmin", xmin, "xmax", xmax)
     xmargin = (xmax - xmin) * 0.005
 
     plt.xlim(xmin - xmargin, xmax + xmargin)
@@ -87,7 +100,7 @@ def plot_pings(pings, deploys):
     for i, site in enumerate(sites):
 
         # Select all deployments for this site/row
-        site_deploys = deploys.loc[deploys.site==site].sort_values(by="deploy_date")
+        site_deploys = deploys.loc[deploys.site==site].sort_values(by="bring_back_date", na_position='last')
 
         # Determine y value and left/right y axis labels for row
         yval = i+1
@@ -102,9 +115,10 @@ def plot_pings(pings, deploys):
         # Iterate over site deployments as segments within the row
 
         for j, deploy in site_deploys.iterrows():
+            # print('deploy', deploy)
 
             # Determine deploy segment start and end
-            deploy_start = deploy.deploy_date
+            deploy_start = (deploy.deploy_date if not pd.isnull(deploy.deploy_date) else xmin)
             deploy_end = (deploy.bring_back_date if not pd.isnull(deploy.bring_back_date) else xmax)
 
             # Select pings in the deployment
@@ -129,7 +143,8 @@ def plot_pings(pings, deploys):
             ax.broken_barh(ping_bars, (yval-ping_bar_height/2, ping_bar_height))
 
             # Draw deploy lines
-            plt.vlines(deploy_start, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
+            if not pd.isnull(deploy.deploy_date):
+                plt.vlines(deploy.deploy_date, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
             plt.hlines(yval, deploy_start, deploy_end, linestyles=deploy_line_style)
             if not pd.isnull(deploy.bring_back_date):
                 plt.vlines(deploy.bring_back_date, yval-deploy_line_height/2, yval+deploy_line_height/2, linestyles=deploy_line_style)
@@ -152,7 +167,7 @@ def plot_pings(pings, deploys):
     # Format left y axis
     ax.set_ylim(ymin,ymax)
     ax.set_yticks(yvals)
-    ax.set_ylabel("site")
+    ax.set_ylabel("Deployment Site")
     ax.set_yticklabels(left_tick_labels)
 
     # Create a right-hand y axis for secondary info (unit nicknames)
@@ -166,7 +181,7 @@ def plot_pings(pings, deploys):
     fig.set_size_inches(11,4)
     plt.tight_layout()
 
-    return fig, ax
+    return fig, ax, ax2
 
 if __name__ == "__main__":
 
@@ -174,6 +189,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Plot pings data")
     parser.add_argument('dbfile', type=str)
     parser.add_argument('plotfile', type=str)
+    parser.add_argument('--xmin', type=str, required=False, default=None)
+    parser.add_argument('--xmax', type=str, required=False, default=None)
+    parser.add_argument("--site-contains", type=str, required=False, default=None)
+    parser.add_argument("--right-axis-label", type=str, required=False, default=None)
+    parser.add_argument("--right-axis-map", type=str, required=False, default=None)
+    parser.add_argument("--title", type=str, required=False, default=None)
 
     args = parser.parse_args()
 
@@ -181,6 +202,25 @@ if __name__ == "__main__":
     pings = fetch_ping_data(db)
     deploys = fetch_deploy_data(db)
 
-    fig, ax = plot_pings(pings, deploys)
+    if args.site_contains:
+        deploys = deploys[deploys['site'].str.contains(args.site_contains)]
+
+    fig, ax, ax2 = plot_pings(pings, deploys, xmin=args.xmin, xmax=args.xmax)
+
+    if args.right_axis_label:
+        ax2.set_ylabel(args.right_axis_label)
+        plt.tight_layout()
+
+    if args.right_axis_map:
+        import json
+        axmap = json.loads(args.right_axis_map)
+        left_labels = [textobj.get_text() for textobj in ax.get_yticklabels()]
+        right_labels = [axmap[left] for left in left_labels]
+        ax2.set_yticklabels(right_labels)
+        plt.tight_layout()
+
+    if args.title:
+        ax.set_title(args.title)
+        plt.tight_layout()
 
     plt.savefig(args.plotfile)
