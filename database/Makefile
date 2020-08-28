@@ -1,3 +1,15 @@
+# Makefile for generic CO2 data and web display
+#
+# This Makefile and code directory is shared with the CO2 OU web server.
+# Updates can manually be transferred between repositories.
+# When updating, take care to keep it generic so that it can be a drop-in replacement.
+#
+# Installation-specific data can go in a separate directory.
+#
+# Requires simple info about unit deployment in a TSV (tab-separated CSV) file.
+# Default location for this file is ../manual/deploy_durations.tsv .
+# Set the DATA_DIR or DEPLOY_DURATIONS_TSV variable to override.
+
 .PHONY: default all web
 
 default: web

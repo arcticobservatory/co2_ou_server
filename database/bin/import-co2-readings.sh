@@ -74,3 +74,11 @@ for column in temp flash_count co2_{01..10}; do
     sqlite3 $DB_NAME "update co2_readings set $column=NULL where $column like 'N%';"
     sqlite3 $DB_NAME "update co2_readings set $column=NULL where $column='';"
 done
+
+# Postprocess imported data
+sqlite3 $DB_NAME <<-ENDSQL
+
+create index co2_index_by_unit_id
+on co2_readings (unit_id, date, time);
+
+ENDSQL
