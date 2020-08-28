@@ -37,6 +37,17 @@ def add_co2_std_column(co2_readings):
     co2_readings["co2_std"] = co2_readings[co2_cols].std(axis=1)
     return co2_readings
 
+def filter_bad_values(co2_readings):
+    df = co2_readings
+    print("Dropping rows with bad datetime values.\n{}" .format(df[df.datetime.isnull()]))
+    df = df[~df.datetime.isnull()]
+
+    for col in "temp flash_count co2_01 co2_02 co2_03 co2_04 co2_05 co2_06 co2_07 co2_08 co2_09 co2_10".split():
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    print("New info:\n{}".format(df.info()))
+    return df
+
 def fetch_deploy_data(db):
     deploys = pd.read_sql('select * from deploy_durations', db, parse_dates=['deploy_date','bring_back_date'])
     return deploys
@@ -129,6 +140,11 @@ def plot_co2(ax, unit_readings, co2_col=None):
 
 
 def plot_temp(ax, unit_readings):
+
+    # This plot requires making segments between pairs of temps.
+    # If there is only one reading it will not work.
+    if len(unit_readings) < 2:
+        return
 
     px_size_pts = 72.0 / ax.get_figure().dpi
 
@@ -243,6 +259,7 @@ if __name__ == "__main__":
 
     db = sqlite3.connect(args.dbfile)
     co2_readings = fetch_co2_data(db)
+    co2_readings = filter_bad_values(co2_readings)
     deploys = fetch_deploy_data(db)
 
     co2_readings = add_co2_std_column(co2_readings)
