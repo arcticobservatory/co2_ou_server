@@ -168,6 +168,8 @@ co2_summary_web: \
     $(WEB_PUB_DIR)/co2_summary.html \
     $(WEB_PUB_DIR)/co2_recent_hires.png \
     $(WEB_PUB_DIR)/co2_all_hires.png \
+    $(WEB_PUB_DIR)/co2_tiered_recent_hires.svg \
+    $(WEB_PUB_DIR)/co2_tiered_all_hires.svg \
 
 
 $(WEB_PUB_DIR)/co2_summary.html: \
@@ -183,9 +185,23 @@ $(WEB_PUB_DIR)/co2_all_hires.png: \
 	mkdir -p $(@D)
 	. $(PYTHON_VENV)/bin/activate && python python/co2_plot.py --same-ranges --co2-max 6000 --dpi 600 $(DB_FILE) $@
 
+$(WEB_PUB_DIR)/co2_tiered_all_hires.svg: \
+    $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
+    python/co2_plot_tiered.py \
+    | $(PYTHON_VENV)
+	mkdir -p $(@D)
+	. $(PYTHON_VENV)/bin/activate && python python/co2_plot_tiered.py $(DB_FILE) $@ # --same-ranges --co2-max 10000 --dpi 600
+
 $(WEB_PUB_DIR)/co2_recent_hires.png: \
     $(DEPLOY_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
     python/co2_plot.py \
     | $(PYTHON_VENV)
 	mkdir -p $(@D)
 	. $(PYTHON_VENV)/bin/activate && python python/co2_plot.py --recent-days 14 --dpi 600 $(DB_FILE) $@
+
+$(WEB_PUB_DIR)/co2_tiered_recent_hires.svg: \
+    $(DEPLOY_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
+    python/co2_plot_tiered.py \
+    | $(PYTHON_VENV)
+	mkdir -p $(@D)
+	. $(PYTHON_VENV)/bin/activate && python python/co2_plot_tiered.py --recent-days 14 $(DB_FILE) $@

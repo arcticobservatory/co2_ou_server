@@ -98,7 +98,7 @@ def select_deploys(db, xmin, xmax, min_tier):
             coerce_float=False,
             parse_dates=['start_ts','end_ts','min_ping_ts', 'max_ping_ts'])
 
-    print(sql); print(params); print(deploys)
+    #print(sql); print(params); print(deploys)
     deploys['tier'] = deploys['tier'].astype("Int64")
     return deploys
 
@@ -162,7 +162,6 @@ def deploys_overlap(ga, gb):
             if not clear: return True
     return False
 
-
 def group_deploys(deploys):
     # First, group by site and unit
     grouped = deploys.groupby(by=["tier","site","unit_id"], sort=False, dropna=False)
@@ -187,7 +186,7 @@ def group_deploys(deploys):
 
     return compressed
 
-def format_ylabel_left(group_df):
+def format_site_name(group_df):
     sites = group_df.site.unique()
     unit_id = group_df.iloc[-1].unit_id
 
@@ -201,7 +200,7 @@ def format_ylabel_left(group_df):
         #return "{} [not deployed]".format(unit_id)
         return "[not deployed]"
 
-def format_ylabel_right(group_df, last_pings_df):
+def format_nickname(group_df, last_pings_df):
 
     deploy_nick = group_df.iloc[-1].nickname
     if deploy_nick:
@@ -292,7 +291,6 @@ def build_plot(db, xmin=None, xmax=None, min_tier=None):
     # It is important to set timestamp axes early, so that Matplotlib knows
     # that the axis uses dates
     xmin, xmax = determine_xlim(xmin, xmax, min_tier, deploys)
-    print(xmin,xmax)
     ax.set_xlim(xmin, xmax)
 
     # Begin y axis setup
@@ -316,8 +314,8 @@ def build_plot(db, xmin=None, xmax=None, min_tier=None):
                 last_nick = pings.iloc[-1].nickname
             draw_deploy_markers(ax, yval, deploy_row, xmin, xmax)
 
-        ylabels_left.append(format_ylabel_left(group))
-        ylabels_right.append(format_ylabel_right(group, pings))
+        ylabels_left.append(format_site_name(group))
+        ylabels_right.append(format_nickname(group, pings))
 
     # Format x axis
     major_locator = mpl.dates.AutoDateLocator()
