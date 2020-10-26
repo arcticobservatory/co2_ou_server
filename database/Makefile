@@ -61,6 +61,18 @@ $(DEPLOY_DURATIONS_TSV):
 
 all: $(DEPLOY_IMPORT_MARKER)
 
+# Deploy data (tiered)
+# --------------------------------------------------
+
+DEPLOY_DURATIONS_TIERED_IMPORT_MARKER:=$(DB_DIR)/.mark_db_load_deploy_durations_tiered
+DEPLOY_DURATIONS_TIERED_TSV := $(DATA_DIR)/manual/deploy_durations_tiered.tsv
+
+$(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER): $(wildcard $(DEPLOY_DURATIONS_TIERED_TSV)) ./bin/import-deploy-durations-tiered.sh
+	mkdir -p $(@D)
+	./bin/import-deploy-durations-tiered.sh $(DB_FILE) $(DEPLOY_DURATIONS_TIERED_TSV) && touch $@
+
+web: $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER)
+
 # Pings
 # --------------------------------------------------
 
@@ -122,6 +134,7 @@ web: pings_summary_web
 pings_summary_web: \
     $(WEB_PUB_DIR)/pings_summary.html \
     $(WEB_PUB_DIR)/pings_all.svg \
+    $(WEB_PUB_DIR)/pings_all_tiered.svg \
 
 
 $(WEB_PUB_DIR)/pings_summary.html: \
@@ -137,6 +150,13 @@ $(WEB_PUB_DIR)/pings_all.svg: \
     | $(PYTHON_VENV)
 	mkdir -p $(@D)
 	. $(PYTHON_VENV)/bin/activate && python python/pings_plot.py $(DB_FILE) $@
+
+$(WEB_PUB_DIR)/pings_all_tiered.svg: \
+    $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(PING_IMPORT_MARKER) \
+    python/pings_plot_tiered.py \
+    | $(PYTHON_VENV)
+	mkdir -p $(@D)
+	. $(PYTHON_VENV)/bin/activate && python python/pings_plot_tiered.py $(DB_FILE) $@ # --xmin=2020-07-01 --xmax=2020-08-01 --min-tier=10
 
 # CO2 info for the web
 # --------------------------------------------------
