@@ -64,6 +64,10 @@ def select_deploys(db, xmin, xmax, min_tier):
             null as start_ts, null as end_ts,
             min(p.ping_ts) as min_ping_ts, max(p.ping_ts) as max_ping_ts
         from pings p
+        left join  deploy_durations_tiered d
+            on d.unit_id = p.unit_id
+            and (d.start_ts is null or d.start_ts <= p.ping_ts)
+            and (d.end_ts is null or p.ping_ts <= d.end_ts)
         where {where_conds}
             and not exists (
                     select unit_id
@@ -80,12 +84,12 @@ def select_deploys(db, xmin, xmax, min_tier):
     params = []
 
     if xmin is not None:
-        where_conds.append("p.ping_ts >= ?")
-        params.append(xmin)
+        where_conds.append("(p.ping_ts >= ? or d.end_ts >= ?)")
+        params.extend([xmin, xmin])
 
     if xmax is not None:
-        where_conds.append("p.ping_ts <= ?")
-        params.append(xmax)
+        where_conds.append("(p.ping_ts <= ? or d.start_ts <= ?)")
+        params.extend([xmax, xmax])
 
     if min_tier is not None:
         where_conds.append("tier is not null and tier >= ?")
