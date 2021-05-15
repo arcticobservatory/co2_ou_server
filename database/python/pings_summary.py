@@ -63,7 +63,13 @@ def fetch_pings_by_unit_id(db):
     db.close()
 
     # Massage data
-    intfmt = lambda n: str(int(n)) if n else ''
+    def intfmt(n):
+        try:
+            return str(int(n))
+        except ValueError:
+            # If n is non-integer (corrupt or NaN)
+            return ""
+
     df.deploy_days = df.deploy_days.apply(intfmt)
     df.deploy_ping_days = df.deploy_ping_days.apply(intfmt)
     df = df.replace(np.nan, '')
