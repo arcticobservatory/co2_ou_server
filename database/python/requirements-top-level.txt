@@ -2,5 +2,6 @@
 matplotlib
 pandas>=1.1.0
 numpy
+tikzplotlib
 # For html templtes
 jinja2

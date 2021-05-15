@@ -1,0 +1,8 @@
+
+figure.figsize: 7.166666666666667, 5
+figure.dpi: 72
+text.usetex: True
+pgf.texsystem: pdflatex
+font.family: serif
+font.serif:
+font.size: 9            # IEEE footnote size: 9pt

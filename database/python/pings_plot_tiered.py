@@ -36,6 +36,8 @@ def argparser():
             help="Maximum date to plot (ISO fmt, e.g. 2020-08-01')")
     parser.add_argument('--min-tier', type=int, required=False, default=None,
             help="Include only deployments with a 'tier' value >= this value")
+    parser.add_argument('--backend', type=str, default=None,
+            help="Select MPL backend to output with. Select 'tikz' to use tikzplotlib")
     return parser
 
 def select_deploys(db, xmin, xmax, min_tier):
@@ -64,6 +66,10 @@ def select_deploys(db, xmin, xmax, min_tier):
             null as start_ts, null as end_ts,
             min(p.ping_ts) as min_ping_ts, max(p.ping_ts) as max_ping_ts
         from pings p
+        left join  deploy_durations_tiered d
+            on d.unit_id = p.unit_id
+            and (d.start_ts is null or d.start_ts <= p.ping_ts)
+            and (d.end_ts is null or p.ping_ts <= d.end_ts)
         where {where_conds}
             and not exists (
                     select unit_id
@@ -80,12 +86,12 @@ def select_deploys(db, xmin, xmax, min_tier):
     params = []
 
     if xmin is not None:
-        where_conds.append("p.ping_ts >= ?")
-        params.append(xmin)
+        where_conds.append("(p.ping_ts >= ? or d.end_ts >= ?)")
+        params.extend([xmin, xmin])
 
     if xmax is not None:
-        where_conds.append("p.ping_ts <= ?")
-        params.append(xmax)
+        where_conds.append("(p.ping_ts <= ? or d.start_ts <= ?)")
+        params.extend([xmax, xmax])
 
     if min_tier is not None:
         where_conds.append("tier is not null and tier >= ?")
@@ -195,6 +201,9 @@ def format_site_name(group_df):
     site = sites[0]
 
     if site:
+        if plt.rcParams['text.usetex']:
+            site = site.replace('_', '\\_')
+            site = site + "\\hspace{.5em}"
         return site
     else:
         #return "{} [not deployed]".format(unit_id)
@@ -325,12 +334,14 @@ def build_plot(db, xmin=None, xmax=None, min_tier=None):
     ax.xaxis.set_major_formatter(mpl.dates.ConciseDateFormatter(major_locator))
 
     # Format y axis (left)
+    ax.set_ylabel("Deployment Site Code")
     ax.set_ylim(.5, num_groups+.5)
     ax.set_yticks(yvals)
     ax.set_yticklabels(ylabels_left)
 
     # Create a right-hand y axis for secondary info
     ax2 = ax.twinx()
+    ax2.set_ylabel("Unit Nickname")
     ax2.set_ylim(*ax.get_ylim())
     ax2.set_yticks(yvals)
     ax2.set_yticklabels(ylabels_right)
@@ -341,7 +352,8 @@ def build_plot(db, xmin=None, xmax=None, min_tier=None):
     # Set figure size
     y_row_size_pts = plt.rcParams.get("font.size") * 1.5
     height_pts = (num_groups+3) * y_row_size_pts
-    fig.set_size_inches(7.5, (height_pts//72)+1)
+    target_width = plt.rcParams['figure.figsize'][0]
+    fig.set_size_inches(target_width, (height_pts//72)+1)
     fig.tight_layout()
 
     return fig
@@ -352,11 +364,18 @@ if __name__ == "__main__":
 
     db = sqlite3.connect(args.dbfile)
     plotfile = args.plotfile
+    backend = args.backend
 
     args = vars(args)
     del(args["dbfile"])
     del(args["plotfile"])
+    del(args["backend"])
 
     fig = build_plot(db, **args)
 
-    fig.savefig(plotfile)
+    if backend=='tikz':
+        import tikzplotlib
+        tikzplotlib.save(plotfile)
+
+    else:
+        fig.savefig(plotfile, backend=backend)

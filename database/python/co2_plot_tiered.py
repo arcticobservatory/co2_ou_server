@@ -54,7 +54,7 @@ grid_style = {
         "color": "0.9",
 }
 
-def arg_parser():
+def argparser():
     import argparse
     parser = argparse.ArgumentParser(description="Plot CO2 data")
     parser.add_argument('dbfile', type=str)
@@ -63,15 +63,21 @@ def arg_parser():
             help="Minumum date to plot (ISO fmt, e.g. 2019-08-01')")
     parser.add_argument('--xmax', type=str, required=False, default=None,
             help="Maximum date to plot (ISO fmt, e.g. 2020-08-01')")
+    parser.add_argument('--co2-max', type=int, required=False, default=None,
+            help="Set max co2 y-limit to this value (ppm)")
     parser.add_argument('--min-tier', type=int, required=False, default=None,
             help="Include only deployments with a 'tier' value >= this value")
+    parser.add_argument('--max-tier', type=int, required=False, default=None,
+            help="Include only deployments with a 'tier' value <= this value")
     parser.add_argument('--recent-days', type=int, default=None)
+    parser.add_argument('--backend', type=str, default=None,
+            help="Select MPL backend to output with. Select 'tikz' to use tikzplotlib")
     #parser.add_argument('--dpi', type=int, default="96")
     #parser.add_argument('--same-ranges', action='store_true')
     #parser.add_argument('--co2-max', type=int, default=None)
     return parser
 
-def select_deploys(db, xmin, xmax, min_tier):
+def select_deploys(db, xmin, xmax, min_tier, max_tier):
 
     sql = """
         -- start with all deployments
@@ -125,6 +131,10 @@ def select_deploys(db, xmin, xmax, min_tier):
         where_conds.append("tier is not null and tier >= ?")
         params.append(min_tier)
 
+    if max_tier is not None:
+        where_conds.append("tier is not null and tier <= ?")
+        params.append(max_tier)
+
     sql = sql.format(where_conds = "\nand ".join(where_conds))
     params = params * 2     # because the where conditions are used twice
 
@@ -142,7 +152,7 @@ def select_deploys(db, xmin, xmax, min_tier):
 
     return deploys
 
-def determine_xlim(xmin, xmax, min_tier, deploys):
+def determine_xlim(xmin, xmax, min_tier, max_tier, deploys):
     deploy_min = deploys.start_ts.dropna().min()
     deploy_max = deploys.end_ts.dropna().max()
     min_co2_date = deploys.min_co2_date.dropna().min()
@@ -152,7 +162,7 @@ def determine_xlim(xmin, xmax, min_tier, deploys):
 
     if xmin:
         xmin = pd.Timestamp(xmin)
-    elif min_tier and deploys.start_ts.notnull().all():
+    elif (min_tier or max_tier) and deploys.start_ts.notnull().all():
         xmin = deploy_min - one_day
     elif not pd.isnull(min_co2_date):
         xmin = min_co2_date - one_day
@@ -161,7 +171,7 @@ def determine_xlim(xmin, xmax, min_tier, deploys):
 
     if xmax:
         xmax = pd.Timestamp(xmax)
-    elif min_tier and deploys.end_ts.notnull().all():
+    elif (min_tier or max_tier) and deploys.end_ts.notnull().all():
         xmax = deploy_max + one_day
     else:
         xmax = today + one_day
@@ -291,7 +301,7 @@ def calculate_bin_width(ax):
     if bin_width > pd.Timedelta(days=1):
         normalized = bin_width.floor("D")
     elif bin_width > pd.Timedelta(hours=1):
-        bin_hours = bin_width.floor("H")
+        normalized = bin_width.floor("H")
     else:
         normalized = None
 
@@ -382,6 +392,8 @@ def format_site_name(group_df):
     site = sites[0]
 
     if site:
+        if plt.rcParams['text.usetex']:
+            site = site.replace('_', '\\_')
         return site
     else:
         #return "{} [not deployed]".format(unit_id)
@@ -395,31 +407,37 @@ def draw_site_label(ax, site_label):
             **site_label_style)
     return t
 
-def build_plot(db, xmin=None, xmax=None, recent_days=None, min_tier=None):
+def build_plot(db, xmin=None, xmax=None, recent_days=None, min_tier=None, max_tier=None, co2_max=None):
 
     if recent_days and not xmin:
         xmin = pd.Timestamp.now().normalize() - pd.Timedelta(days=recent_days)
         xmin = xmin.isoformat()
 
-    deploys = select_deploys(db, xmin, xmax, min_tier)
+    deploys = select_deploys(db, xmin, xmax, min_tier, max_tier)
     grouped = group_deploys(deploys)
     num_groups = len(grouped)
 
     # Initialize figure
+    print("num_groups:", num_groups)
     fig, axes = plt.subplots(nrows=num_groups, ncols=1, sharex=True)
+    print("axes:", repr(axes))
+    # un-squeeze the axes object if only one subplot, convert back to list
+    if num_groups==1:
+        axes = [axes]
 
     # Begin x axis setup
     # It is important to set timestamp axes early, so that Matplotlib knows
     # that the axis uses dates
-    xmin, xmax = determine_xlim(xmin, xmax, min_tier, deploys)
+    xmin, xmax = determine_xlim(xmin, xmax, min_tier, max_tier, deploys)
     axes[0].set_xlim(xmin, xmax)
 
     # Set figure size
+    target_width = plt.rcParams['figure.figsize'][0]
     subplot_height_ins = 1
     text_line_height_pts = plt.rcParams.get("font.size") * 1.5
     margin_ins = (2 * text_line_height_pts / 72.0)
     height_ins = subplot_height_ins * num_groups + margin_ins
-    fig.set_size_inches(7.5, height_ins)
+    fig.set_size_inches(target_width, height_ins)
 
     bin_width = calculate_bin_width(axes[-1])
 
@@ -436,6 +454,8 @@ def build_plot(db, xmin=None, xmax=None, recent_days=None, min_tier=None):
         co2_ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(
             lambda x, pos: "{:,.0f}".format(x).replace(",", " ")))
         co2_ax.set_ylabel("CO2 (ppm)")
+        if co2_max:
+            co2_ax.set_ylim(0, co2_max)
 
         # Create a separate axis to draw the CO2 fill on
         co2_fill_ax = co2_ax
@@ -472,16 +492,23 @@ def build_plot(db, xmin=None, xmax=None, recent_days=None, min_tier=None):
     return fig
 
 if __name__ == "__main__":
-    parser = arg_parser()
+    parser = argparser()
     args = parser.parse_args()
 
     db = sqlite3.connect(args.dbfile)
     plotfile = args.plotfile
+    backend = args.backend
 
     args = vars(args)
     del(args["dbfile"])
     del(args["plotfile"])
+    del(args["backend"])
 
     fig = build_plot(db, **args)
 
-    fig.savefig(plotfile)
+    if backend=='tikz':
+        import tikzplotlib
+        tikzplotlib.save(plotfile)
+
+    else:
+        fig.savefig(plotfile, backend=backend)

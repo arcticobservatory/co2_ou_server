@@ -7,3 +7,12 @@ tmp.sql
 # Python
 __pycache__/
 .venv
+
+# If messing around with LaTeX rendering
+*.aux
+*.log
+*.pdf
+*.pgf
+
+# Other output formats
+*.svg
