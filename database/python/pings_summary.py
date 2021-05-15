@@ -15,32 +15,32 @@ def fetch_pings_by_unit_id(db):
                 lp.nickname,
                 d.site,
                 -- d.action,
-                -- d.deploy_date,
+                -- d.start_ts,
                 lp.ping_date as last_ping,
                 lp.rssi_dbm as last_dbm,
                 dp.ping_date as last_deploy_ping,
                 dp.rssi_dbm as last_deploy_dbm,
                 case
-                        when d.deploy_date is not null
-                                then (select count(distinct ping_date) from pings where pings.unit_id = d.unit_id and ping_date > d.deploy_date)
+                        when d.start_ts is not null
+                                then (select count(distinct ping_date) from pings where pings.unit_id = d.unit_id and ping_date > d.start_ts)
                         else null
                 end	as deploy_ping_days,
-                cast (( julianday() - julianday(d.deploy_date) ) as integer) as deploy_days,
-                (select max(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.deploy_date) as deploy_dbm_max,
-                (select avg(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.deploy_date) as deploy_dbm_mean,
-                (select min(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.deploy_date) as deploy_dbm_min
+                cast (( julianday() - julianday(d.start_ts) ) as integer) as deploy_days,
+                (select max(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.start_ts) as deploy_dbm_max,
+                (select avg(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.start_ts) as deploy_dbm_mean,
+                (select min(rssi_dbm)             from pings where pings.unit_id = d.unit_id and ping_date > d.start_ts) as deploy_dbm_min
         from (select distinct unit_id from pings) as u
         left join pings as lp
                 on lp.unit_id = u.unit_id
                 and lp.ping_date = (select ping_date from pings where pings.unit_id = u.unit_id order by ping_date desc, ping_time desc limit 1)
                 and lp.ping_time = (select ping_time from pings where pings.unit_id = u.unit_id order by ping_date desc, ping_time desc limit 1)
-        left join deploy_durations as d
+        left join deploy_durations_tiered as d
                 on d.unit_id = u.unit_id
-                and d.bring_back_date is null
+                and d.end_ts is null
         left join pings as dp
                 on dp.unit_id = u.unit_id
-                and dp.ping_date = (select ping_date from pings where pings.unit_id = u.unit_id and ping_date > d.deploy_date order by ping_date desc, ping_time desc limit 1)
-                and dp.ping_time = (select ping_time from pings where pings.unit_id = u.unit_id and ping_date > d.deploy_date order by ping_date desc, ping_time desc limit 1)
+                and dp.ping_date = (select ping_date from pings where pings.unit_id = u.unit_id and ping_date > d.start_ts order by ping_date desc, ping_time desc limit 1)
+                and dp.ping_time = (select ping_time from pings where pings.unit_id = u.unit_id and ping_date > d.start_ts order by ping_date desc, ping_time desc limit 1)
                 and d.site is not null
         order by
                 case
@@ -63,7 +63,7 @@ def fetch_pings_by_unit_id(db):
     db.close()
 
     # Massage data
-    intfmt = lambda n: str(int(n)) if n==n else ''
+    intfmt = lambda n: str(int(n)) if n else ''
     df.deploy_days = df.deploy_days.apply(intfmt)
     df.deploy_ping_days = df.deploy_ping_days.apply(intfmt)
     df = df.replace(np.nan, '')
