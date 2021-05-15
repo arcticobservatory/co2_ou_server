@@ -1,8 +1,87 @@
 Simple Server for DAO CO2 Observation Units
 ==================================================
 
-This is a simple HTTP server for our CO2 Observation Units.
-It is written in Python with Flask.
+This is Python code for a backend server for a
+CO2 sensor, or "Observation Unit",
+developed at UiT The Arctic University of Norway
+as part of the Distributed Arctic Observatory project.
+These Observation Units are described in the paper:
+
+Murphy et al.
+"Experiences Building and Deploying
+ Wireless Sensor Nodes for the Arctic Tundra,"
+in The 21st IEEE/ACM International Symposium on
+   Cluster, Cloud and Internet Computing (CCGrid 2021).
+Melbourne Australia, May 2021.
+
+The CO2 Observation Units are based on a FiPy microcontroller.
+They push data via LTE CAT-M1 to a server in the lab (this code).
+
+This is a bare-bones HTTP server, written in Python with Flask.
+There are also a few scripts to import collected data into a database
+and make plots from it.
+
+For MicroPython code that runs on the device (and instructions for building one)
+see <https://github.com/arcticobservatory/co2_ou_device>
+
+Code Layout
+--------------------------------------------------
+
+The server is meant to be as simple as possible.
+It uses the flask-restful framework inside of the UWSGI container.
+The main source file is `src/server.py`.
+
+The server accepts data uploads and "alive" pings from the CO2 OUs,
+which are identified by hardware ID.
+Uploaded data is kept in the `remote_data/` directory,
+while records of "alive" pings are kept
+in tab-separated-values files in the `var/pings/` directory
+and also in a table in a SQLite data base `var/db.sqlite3`.
+
+Scripts in the `database/` directory can import CO2 or other data into the
+database and generate plots from it, as well as simple web pages to display
+the plots. See the [README file in that directory](database/) for details.
+
+**WARNING**: Accepting uploaded data from the internet
+is often a risky activity,
+and this server was not developed with security as a top concern.
+There are probably exploits.
+It is advised that you run this on a dedicated server/container
+where damage from intrusion or malicious use can be contained.
+
+- `src/` --- Source code
+
+    - `server.py`
+        --- Main server file
+    - `server.ini.example`
+        --- Example uwsgi configuration file,
+            to be edited and copied to `server.ini`
+    - `seqfile.py`
+        --- Utility library for reading and writing sequential log files
+            e.g. readings-0000.tsv, readings-0001.tsv, etc.
+
+- `scripts/` --- Utility scripts
+
+- `remote_data/`
+    --- Directory for data uploaded by the CO2 OUs.
+        Will be created by the server.
+        See the [Data Layout](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-data-layout.md)
+        document in the device code repository
+        for details of how the observation data is organized.
+
+- `var/`
+    --- Directory for server data.
+        Will be created by the server.
+
+    - `pings/` --- Directory of OU ping records in tab-separated-values format
+    - `pub/` --- Directory of files to serve, such as generated data plots
+    - `db.sqlite3` --- Database of pings (and optionally other data)
+
+- `database/`
+    --- Directory with scripts to build a database of uploaded CO2 data
+        and generate plots from it. These scripts are controlled via a
+        Makefile in this directory.
+        See the [README file in that directory](database/) for details.
 
 Running the server
 --------------------------------------------------
@@ -10,7 +89,7 @@ Running the server
 ### Installation
 
 The code can be installed anywhere and run from its own directory.
-It does need access to the Python Flask library.
+However, it does need access to the Python Flask library.
 
 ### Virtualenv setup
 
