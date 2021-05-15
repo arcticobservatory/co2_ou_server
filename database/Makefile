@@ -7,8 +7,8 @@
 # Installation-specific data can go in a separate directory.
 #
 # Requires simple info about unit deployment in a TSV (tab-separated CSV) file.
-# Default location for this file is ../manual/deploy_durations.tsv .
-# Set the DATA_DIR or DEPLOY_DURATIONS_TSV variable to override.
+    # Default location for this file is ../manual/deploy_durations_tiered.tsv .
+# Set the DATA_DIR or DEPLOY_DURATIONS_TIERED_TSV variable to override.
 
 .PHONY: default all web
 
@@ -39,27 +39,6 @@ distclean:
 # --------------------------------------------------
 
 DB_FILE := $(DB_DIR)/db.sqlite3
-
-# Deploy data
-# --------------------------------------------------
-
-DEPLOY_IMPORT_MARKER:=$(DB_DIR)/.mark_db_load_deploy_durations
-DEPLOY_DURATIONS_TSV := $(DATA_DIR)/manual/deploy_durations.tsv
-
-$(DEPLOY_IMPORT_MARKER): $(wildcard $(DEPLOY_DURATIONS_TSV)) | $(DEPLOY_DURATIONS_TSV)
-	./bin/import-deploy-durations.sh $(DB_FILE) < $(DEPLOY_DURATIONS_TSV) && touch $@
-
-$(DEPLOY_DURATIONS_TSV):
-	@echo MANUAL INTERVENTION REQUIRED
-	@echo The deployment_durations table must be added manually.
-	@echo Options
-	@echo 	1. Create the table in the database and create a marker file $(DEPLOY_IMPORT_MARKER)
-	@echo 	2. Create a $(DEPLOY_DURATIONS_TSV) file
-	@echo 	2a. If the file already exists, set the DEPLOY_DURATIONS_TSV variable to point to it
-	@echo 	3. Pipe appropriate TSV data into the script bin/import-deploy-durations.sh
-	exit 1
-
-all: $(DEPLOY_IMPORT_MARKER)
 
 # Deploy data (tiered)
 # --------------------------------------------------
@@ -133,23 +112,15 @@ web: pings_summary_web
 
 pings_summary_web: \
     $(WEB_PUB_DIR)/pings_summary.html \
-    $(WEB_PUB_DIR)/pings_all.svg \
     $(WEB_PUB_DIR)/pings_all_tiered.svg \
 
 
 $(WEB_PUB_DIR)/pings_summary.html: \
-    $(DEPLOY_IMPORT_MARKER) $(PING_IMPORT_MARKER) \
+    $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(PING_IMPORT_MARKER) \
     templates_web/pings_summary.html python/pings_summary.py \
     | $(PYTHON_VENV)
 	mkdir -p $(@D)
 	. $(PYTHON_VENV)/bin/activate && python python/pings_summary.py $(DB_FILE) templates_web/pings_summary.html > $@
-
-$(WEB_PUB_DIR)/pings_all.svg: \
-    $(DEPLOY_IMPORT_MARKER) $(PING_IMPORT_MARKER) \
-    python/pings_plot.py \
-    | $(PYTHON_VENV)
-	mkdir -p $(@D)
-	. $(PYTHON_VENV)/bin/activate && python python/pings_plot.py $(DB_FILE) $@
 
 $(WEB_PUB_DIR)/pings_all_tiered.svg: \
     $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(PING_IMPORT_MARKER) \
@@ -166,8 +137,6 @@ web: co2_summary_web
 
 co2_summary_web: \
     $(WEB_PUB_DIR)/co2_summary.html \
-    $(WEB_PUB_DIR)/co2_recent_hires.png \
-    $(WEB_PUB_DIR)/co2_all_hires.png \
     $(WEB_PUB_DIR)/co2_tiered_recent_hires.svg \
     $(WEB_PUB_DIR)/co2_tiered_all_hires.svg \
 
@@ -178,13 +147,6 @@ $(WEB_PUB_DIR)/co2_summary.html: \
 	mkdir -p $(@D)
 	cp $< $@
 
-$(WEB_PUB_DIR)/co2_all_hires.png: \
-    $(DEPLOY_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
-    python/co2_plot.py \
-    | $(PYTHON_VENV)
-	mkdir -p $(@D)
-	. $(PYTHON_VENV)/bin/activate && python python/co2_plot.py --same-ranges --co2-max 6000 --dpi 600 $(DB_FILE) $@
-
 $(WEB_PUB_DIR)/co2_tiered_all_hires.svg: \
     $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
     python/co2_plot_tiered.py \
@@ -192,15 +154,8 @@ $(WEB_PUB_DIR)/co2_tiered_all_hires.svg: \
 	mkdir -p $(@D)
 	. $(PYTHON_VENV)/bin/activate && python python/co2_plot_tiered.py $(DB_FILE) $@ # --same-ranges --co2-max 10000 --dpi 600
 
-$(WEB_PUB_DIR)/co2_recent_hires.png: \
-    $(DEPLOY_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
-    python/co2_plot.py \
-    | $(PYTHON_VENV)
-	mkdir -p $(@D)
-	. $(PYTHON_VENV)/bin/activate && python python/co2_plot.py --recent-days 14 --dpi 600 $(DB_FILE) $@
-
 $(WEB_PUB_DIR)/co2_tiered_recent_hires.svg: \
-    $(DEPLOY_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
+    $(DEPLOY_DURATIONS_TIERED_IMPORT_MARKER) $(CO2_IMPORT_MARKER) \
     python/co2_plot_tiered.py \
     | $(PYTHON_VENV)
 	mkdir -p $(@D)

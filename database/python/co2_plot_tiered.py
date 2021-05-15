@@ -386,6 +386,7 @@ def draw_temp(ax, temp_series):
 def format_site_name(group_df):
     sites = group_df.site.unique()
     unit_id = group_df.iloc[-1].unit_id
+    nickname = group_df.iloc[-1].nickname
 
     if not len(sites)==1:
         raise ValueError("Expected group to have only 1 site: {}".format(group_df))
@@ -395,9 +396,15 @@ def format_site_name(group_df):
         if plt.rcParams['text.usetex']:
             site = site.replace('_', '\\_')
         return site
+    elif nickname:
+        #return "{} [not deployed]".format(nickname)
+        return nickname
+    elif unit_id:
+        #return "{} [not deployed]".format(unit_id)
+        return unit_id
     else:
         #return "{} [not deployed]".format(unit_id)
-        return "[not deployed]"
+        return "[unknown OU]"
 
 def draw_site_label(ax, site_label):
     t = ax.annotate(site_label,
@@ -418,11 +425,12 @@ def build_plot(db, xmin=None, xmax=None, recent_days=None, min_tier=None, max_ti
     num_groups = len(grouped)
 
     # Initialize figure
-    print("num_groups:", num_groups)
-    fig, axes = plt.subplots(nrows=num_groups, ncols=1, sharex=True)
-    print("axes:", repr(axes))
-    # un-squeeze the axes object if only one subplot, convert back to list
-    if num_groups==1:
+    fig, axes = plt.subplots(nrows=(num_groups or 1), ncols=1, sharex=True)
+
+    # We are expecting a list of Axes.
+    # If the plot is 1x1, mpl will "squeeze" the axes into one object,
+    # So we un-squeeze that here and turn it back into a list.
+    if isinstance(axes, mpl.axes.Axes):
         axes = [axes]
 
     # Begin x axis setup
