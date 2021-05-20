@@ -16,17 +16,33 @@ Melbourne Australia, May 2021.
 
 This directory contains scripts to import the collected data
 into a SQLite database and to generate plots from the data.
-These scripts are designed so that they can be stored and run both with
-the web server, and with the data itself.
-It should be possible to create additional scripts that add more specific
-data to the database.
+These scripts are designed to work with generic CO2 data
+as described in the [Data Layout](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-data-layout.md) document,
+with optional deployment-specific information.
+It should also be possible to make a copy to be kept with the
+data itself that is extended with more custom scripts.
 
-Other repositories associated with this project include:
+Repositories and Documentation Associated with this Project
+------------------------------------------------------------
 
-- The on-device MicroPython code:
-    <https://github.com/arcticobservatory/co2_ou_device>
-- The server code:
-    <https://github.com/arcticobservatory/co2_ou_server>
+- [co2_ou_device](https://github.com/arcticobservatory/co2_ou_device) repo
+    --- Code and documentation for the observation unit itself
+
+    - [Parts List](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-parts-list.md)
+        --- parts used to build the observation units
+    - [Circuit Schematic](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-schematic-v1.pdf)
+        --- diagram of hardware and pin connections
+    - [FiPy/Observation Unit Setup](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-fipy-setup.md)
+        --- guide to installing the code on a FiPy and configuring the OU
+    - [Data Layout](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-data-layout.md)
+        --- OU naming, data directory structure, and data file formats
+
+- [co2_ou_server](https://github.com/arcticobservatory/co2_ou_server) repo
+    --- Code and documentation for the companion server
+
+    - [Database Scripts](https://github.com/arcticobservatory/co2_ou_server/tree/master/database)
+        --- Shell scripts that import the text-based CO2 data into a
+            SQLite database for analysis, plus Python scripts to generate plots
 
 Input Data
 --------------------------------------------------
@@ -96,7 +112,6 @@ These scripts create a deployment table in the database called
 |----------------------|-------------|-------------|-----:|-----------|---------------------|---------------------|------------------------------|
 | co2unit-30aea42a5140 | test_unit   | field_spare |    8 | lab_check |                     | 2019-08-01T00:00:00 |                              |
 | co2unit-30aea42a5140 | test_unit   | field_spare |    8 | en_route  | 2019-08-01T00:00:00 | 2019-08-13T12:00:00 | with Mike on flight to Vadsø |
-|                      |             |             |      |           |                     |                     |                              |
 | co2unit-30aea42a5268 | varanger-01 | vj_re_sn_3  |   23 | lab_check |                     | 2019-08-01T00:00:00 |                              |
 | co2unit-30aea42a5268 | varanger-01 | vj_re_sn_3  |   23 | en_route  | 2019-08-01T00:00:00 | 2019-08-13T12:00:00 |                              |
 | co2unit-30aea42a5268 | varanger-01 | vj_re_sn_3  |   23 | deployed  | 2019-08-13T12:00:00 | 2019-09-26T08:00:00 |                              |
@@ -149,7 +164,7 @@ CREATE TABLE deploy_durations_tiered (
 
 By default the `deploy_durations_tiered` table is populated from a
 tab-separated-values (CSV with tab delimiters) file
-in the `manual/` subdirectory of the data directory:
+in the `manual/` subdirectory of the data directory (if it exists):
 `manual/deploy_durations_tiered.tsv`
 
 That way it can be kept with the collected data.
@@ -174,3 +189,5 @@ co2unit-30aea42a5268	varanger-01	vj_re_sn_3	23	deployed	2019-08-13T12:00:00	2019
 # 2019-08-13 (through day)	First deployment						
 # 2019-09-26 (through day)	Update: switch FiPys						
 ```
+
+The blank and comment lines will be filtered out on import.

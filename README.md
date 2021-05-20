@@ -15,16 +15,35 @@ in The 21st IEEE/ACM International Symposium on
 Melbourne Australia, May 2021.
 
 The CO2 Observation Units are based on a FiPy microcontroller.
-They push data via LTE CAT-M1 to a server in the lab (this code).
+They push data via LTE CAT-M1 to a server in the lab.
 
-This is a bare-bones HTTP server, written in Python with Flask.
-There are also a few scripts to import collected data into a database
-and make plots from it.
+This repository includes the server code,
+plus scripts to import the data into a database and generate plots.
+The server is a bare-bones HTTP server, written in Python with Flask.
 
-For MicroPython code that runs on the device (and instructions for building one)
-see <https://github.com/arcticobservatory/co2_ou_device>
+Repositories and Documentation Associated with this Project
+------------------------------------------------------------
 
-Code Layout
+- [co2_ou_device](https://github.com/arcticobservatory/co2_ou_device) repo
+    --- Code and documentation for the observation unit itself
+
+    - [Parts List](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-parts-list.md)
+        --- parts used to build the observation units
+    - [Circuit Schematic](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-schematic-v1.pdf)
+        --- diagram of hardware and pin connections
+    - [FiPy/Observation Unit Setup](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-fipy-setup.md)
+        --- guide to installing the code on a FiPy and configuring the OU
+    - [Data Layout](https://github.com/arcticobservatory/co2_ou_device/blob/master/doc/co2-unit-data-layout.md)
+        --- OU naming, data directory structure, and data file formats
+
+- [co2_ou_server](https://github.com/arcticobservatory/co2_ou_server) repo
+    --- Code and documentation for the companion server
+
+    - [Database Scripts](https://github.com/arcticobservatory/co2_ou_server/tree/master/database)
+        --- Shell scripts that import the text-based CO2 data into a
+            SQLite database for analysis, plus Python scripts to generate plots
+
+Code Layout in this Repository
 --------------------------------------------------
 
 The server is meant to be as simple as possible.
@@ -40,7 +59,7 @@ and also in a table in a SQLite data base `var/db.sqlite3`.
 
 Scripts in the `database/` directory can import CO2 or other data into the
 database and generate plots from it, as well as simple web pages to display
-the plots. See the [README file in that directory](database/) for details.
+the plots. See the additional [database/README.md](database/) file for details.
 
 **WARNING**: Accepting uploaded data from the internet
 is often a risky activity,
@@ -79,9 +98,9 @@ where damage from intrusion or malicious use can be contained.
 
 - `database/`
     --- Directory with scripts to build a database of uploaded CO2 data
-        and generate plots from it. These scripts are controlled via a
-        Makefile in this directory.
-        See the [README file in that directory](database/) for details.
+        and generate plots from it. The scripts are controlled via a
+        Makefile in the directory.
+        There is an addition [database/README.md](database/) file with more details.
 
 Running the server
 --------------------------------------------------
